@@ -1,26 +1,3 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-    
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.0
-    Date: 27-10-2016
-    */
-
-
-//  Pipeline operator
-
 module jt51_op(
     `ifdef TEST_SUPPORT
     input               test_eg,
@@ -28,35 +5,28 @@ module jt51_op(
     `endif
     input               rst,
     input               clk,
-    input               cen,            // P1
+    input               cen,
     input       [9:0]   pg_phase_X,
     input       [2:0]   con_I,
     input       [2:0]   fb_II,
-    // volume
+
     input       [9:0]   eg_atten_XI,
-    // modulation
+
     input               use_prevprev1,
     input               use_internal_x,
-    input               use_internal_y,    
+    input               use_internal_y,
     input               use_prev2,
     input               use_prev1,
     input               test_214,
-    
+
     input               m1_enters,
     input               c1_enters,
     `ifdef SIMULATION
     input               zero,
     `endif
-    // output data
+
     output signed   [13:0]  op_XVII
 );
-
-/*  enters  exits
-    m1      c1
-    m2      S4
-    c1      m1
-    S4      m2
-*/
 
 wire signed [13:0] prev1, prevprev1, prev2;
 
@@ -84,8 +54,6 @@ jt51_sh #( .width(14), .stages(8)) prev2_buffer(
     .drop   ( prev2 )
 );
 
-// REGISTER/CYCLE 1
-// Creation of phase modulation (FM) feedback signal, before shifting
 reg [13:0]  x,  y;
 reg [14:0]  xs, ys, pm_preshift_II;
 reg         m1_II;
@@ -96,32 +64,25 @@ always @(*) begin
           ( {14{use_prev2}}      & prev2 );
     y  = ( {14{use_prev1}}      & prev1 ) |
           ( {14{use_internal_y}} & op_XVII );
-    xs = { x[13], x }; // sign-extend
-    ys = { y[13], y }; // sign-extend
+    xs = { x[13], x };
+    ys = { y[13], y };
 end
 
 always @(posedge clk) if(cen) begin
-    pm_preshift_II <= xs + ys; // carry is discarded
+    pm_preshift_II <= xs + ys;
     m1_II <= m1_enters;
 end
-
-/* REGISTER/CYCLE 2-7 (also YM2612 extra cycles 1-6)
-   Shifting of FM feedback signal, adding phase from PG to FM phase
-   In YM2203, phasemod_II is not registered at all, it is latched on the first edge 
-   in add_pg_phase and the second edge is the output of add_pg_phase. In the YM2612, there
-   are 6 cycles worth of registers between the generated (non-registered) phasemod_II signal
-   and the input to add_pg_phase.     */
 
 reg  [9:0]  phasemod_II;
 wire [9:0]  phasemod_X;
 
 always @(*) begin
-    // Shift FM feedback signal
-    if (!m1_II ) // Not m1
-        phasemod_II = pm_preshift_II[10:1]; // Bit 0 of pm_preshift_II is never used
-    else // m1
+
+    if (!m1_II )
+        phasemod_II = pm_preshift_II[10:1];
+    else
         case( fb_II )
-            3'd0: phasemod_II = 10'd0;      
+            3'd0: phasemod_II = 10'd0;
             3'd1: phasemod_II = { {4{pm_preshift_II[14]}}, pm_preshift_II[14:9] };
             3'd2: phasemod_II = { {3{pm_preshift_II[14]}}, pm_preshift_II[14:8] };
             3'd3: phasemod_II = { {2{pm_preshift_II[14]}}, pm_preshift_II[14:7] };
@@ -133,7 +94,6 @@ always @(*) begin
         endcase
 end
 
-// REGISTER/CYCLE 2-9
 jt51_sh #( .width(10), .stages(8)) phasemod_sh(
     .rst    ( rst           ),
     .clk    ( clk           ),
@@ -142,13 +102,7 @@ jt51_sh #( .width(10), .stages(8)) phasemod_sh(
     .drop   ( phasemod_X    )
 );
 
-
-// REGISTER/CYCLE 10
 reg [ 9:0]  phase;
-// Sets the maximum number of fanouts for a register or combinational
-// cell.  The Quartus II software will replicate the cell and split
-// the fanouts among the duplicates until the fanout of each cell
-// is below the maximum.
 
 reg [ 7:0]  phaselo_XI, aux_X;
 reg signbit_X;
@@ -159,7 +113,7 @@ always @(*) begin
     signbit_X = phase[9];
 end
 
-always @(posedge clk) if(cen) begin    
+always @(posedge clk) if(cen) begin
     phaselo_XI <= aux_X;
 end
 
@@ -172,9 +126,6 @@ jt51_phrom u_phrom(
     .ph     ( sta_XI    )
 );
 
-// REGISTER/CYCLE 11
-// Sine table    
-// Main sine table body
 reg [18:0]  stb;
 reg [10:0]  stf, stg;
 reg [11:0]  logsin;
@@ -182,12 +133,11 @@ reg [10:0]  subtresult;
 reg [11:0]  atten_internal_XI;
 
 always @(*) begin
-    //sta_XI = sinetable[ phaselo_XI[5:1] ];
-    // 2-bit row chooser
+
     case( phaselo_XI[7:6] )
-        2'b00: stb = { 10'b0, sta_XI[29], sta_XI[25], 2'b0, sta_XI[18], 
+        2'b00: stb = { 10'b0, sta_XI[29], sta_XI[25], 2'b0, sta_XI[18],
             sta_XI[14], 1'b0, sta_XI[7] , sta_XI[3] };
-        2'b01: stb = { 6'b0 , sta_XI[37], sta_XI[34], 2'b0, sta_XI[28], 
+        2'b01: stb = { 6'b0 , sta_XI[37], sta_XI[34], 2'b0, sta_XI[28],
             sta_XI[24], 2'b0, sta_XI[17], sta_XI[13], sta_XI[10], sta_XI[6], sta_XI[2] };
         2'b10: stb = { 2'b0, sta_XI[43], sta_XI[41], 2'b0, sta_XI[36],
             sta_XI[33], 2'b0, sta_XI[27], sta_XI[23], 1'b0, sta_XI[20],
@@ -200,31 +150,21 @@ always @(*) begin
             , sta_XI[8], sta_XI[4], sta_XI[0] };
         default: stb = 19'dx;
     endcase
-    // Fixed value to sum
+
     stf = { stb[18:15], stb[12:11], stb[8:7], stb[4:3], stb[0] };
-    // Gated value to sum; bit 14 is indeed used twice
+
     if( phaselo_XI[0] )
         stg = { 2'b0, stb[14], stb[14:13], stb[10:9], stb[6:5], stb[2:1] };
     else
         stg = 11'd0;
-    // Sum to produce final logsin value
-    logsin = stf + stg; // Carry-out of 11-bit addition becomes 12th bit
-    // Invert-subtract logsin value from EG attenuation value, with inverted carry
-    // In the actual chip, the output of the above logsin sum is already inverted.
-    // The two LSBs go through inverters (so they're non-inverted); the eg_atten_XI signal goes through inverters.
-    // The adder is normal except the carry-in is 1. It's a 10-bit adder.
-    // The outputs are inverted outputs, including the carry bit.
-    //subtresult = not (('0' & not eg_atten_XI) - ('1' & logsin([11:2])));
-    // After a little pencil-and-paper, turns out this is equivalent to a regular adder!
+
+    logsin = stf + stg;
+
     subtresult = eg_atten_XI + logsin[11:2];
-    // Place all but carry bit into result; also two LSBs of logsin
-    // If addition overflowed, make it the largest value (saturate)
+
     atten_internal_XI = { subtresult[9:0], logsin[1:0] } | {12{subtresult[10]}};
 end
 
-
-// Register cycle 12
-// Exponential table
 wire [44:0] exp_XII;
 reg  [11:0] totalatten_XII;
 reg  [12:0] etb;
@@ -242,51 +182,44 @@ always @(posedge clk) if(cen) begin
     totalatten_XII <= atten_internal_XI;
 end
 
-//wire [1:0] et_sel  = totalatten_XII[7:6];
-//wire [4:0] et_fine = totalatten_XII[5:1];
+always @(*) begin
 
-// Main sine table body
-always @(*) begin    
-    // 2-bit row chooser    
     case( totalatten_XII[7:6] )
         2'b00: begin
                 etf = { 1'b1, exp_XII[44:36]  };
-                etg = { 1'b1, exp_XII[35:34] };             
+                etg = { 1'b1, exp_XII[35:34] };
             end
         2'b01: begin
                 etf = exp_XII[33:24];
-                etg = { 2'b10, exp_XII[23] };               
+                etg = { 2'b10, exp_XII[23] };
             end
         2'b10: begin
                 etf = { 1'b0, exp_XII[22:14]  };
-                etg = exp_XII[13:11];               
+                etg = exp_XII[13:11];
             end
         2'b11: begin
                 etf = { 2'b00, exp_XII[10:3]  };
                 etg = exp_XII[2:0];
             end
-    endcase 
+    endcase
 end
 
 reg [9:0]   mantissa_XIII;
 reg [3:0]   exponent_XIII;
 
 always @(posedge clk) if(cen) begin
-    //RESULT
-    mantissa_XIII <= etf + { 7'd0, totalatten_XII[0] ? 3'd0 : etg }; //carry-out discarded
+
+    mantissa_XIII <= etf + { 7'd0, totalatten_XII[0] ? 3'd0 : etg };
     exponent_XIII <= totalatten_XII[11:8];
 end
 
-// REGISTER/CYCLE 13
-// Introduce test bit as MSB, 2's complement & Carry-out discarded
 reg [12:0]  shifter, shifter_2, shifter_3;
 
-always @(*) begin    
-    // Floating-point to integer, and incorporating sign bit
-    // Two-stage shifting of mantissa_XIII by exponent_XIII
+always @(*) begin
+
     shifter = { 3'b001, mantissa_XIII };
     case( ~exponent_XIII[1:0] )
-        2'b00: shifter_2 = { 1'b0, shifter[12:1] }; // LSB discarded
+        2'b00: shifter_2 = { 1'b0, shifter[12:1] };
         2'b01: shifter_2 = shifter;
         2'b10: shifter_2 = { shifter[11:0], 1'b0 };
         2'b11: shifter_2 = { shifter[10:0], 2'b0 };
@@ -303,14 +236,14 @@ reg signed [13:0] op_XIII;
 wire signbit_XIII;
 
 always @(*) begin
-    op_XIII = ({ test_214, shifter_3 } ^ {14{signbit_XIII}}) + {13'd0, signbit_XIII};               
+    op_XIII = ({ test_214, shifter_3 } ^ {14{signbit_XIII}}) + {13'd0, signbit_XIII};
 end
 
 jt51_sh #( .width(14), .stages(4)) out_padding(
     .rst    ( rst       ),
     .clk    ( clk       ),
     .cen    ( cen       ),
-    .din    ( op_XIII   ), // note op_XIII was not latched, is a comb output
+    .din    ( op_XIII   ),
     .drop   ( op_XVII   )
 );
 
@@ -322,10 +255,9 @@ jt51_sh #( .width(1), .stages(3)) shsignbit(
     .drop   ( signbit_XIII  )
 );
 
-/////////////////// Debug
 `ifndef JT51_NODEBUG
 `ifdef SIMULATION
-/* verilator lint_off PINMISSING */
+
 wire [4:0] cnt;
 
 sep32_cnt u_sep32_cnt (.clk(clk), .cen(cen), .zero(zero), .cnt(cnt));
@@ -336,8 +268,9 @@ sep32 #(.width(14),.stg(17)) sep_op(
     .mixed  ( op_XVII       ),
     .cnt    ( cnt           )
     );
-/* verilator lint_on PINMISSING */
+
 `endif
 `endif
 
 endmodule
+

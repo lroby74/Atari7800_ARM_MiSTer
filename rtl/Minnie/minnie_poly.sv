@@ -32,13 +32,12 @@
 //           Clocking per sample would give all three the same value.
 //   seed    all ones. XOR feedback locks up at all zeros, so the seed must not
 //           be zero and reset must not clear it.
-
 `default_nettype none
 
 module minnie_poly (
 	input  wire        clk,
-	input  wire        step_en,    // one pulse per microcode state
-	input  wire        rst,        // reset, or CREG POLYRST
+	input  wire        step_en,
+	input  wire        rst,
 
 	output wire [14:0] poly
 );
@@ -57,3 +56,4 @@ module minnie_poly (
 endmodule
 
 `default_nettype wire
+

@@ -19,39 +19,33 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-
-
 module maria(
-	// Busses
+
 	input  logic [15:0] AB_in,
 	output logic [15:0] AB_out,
 	input  logic  [7:0] d_in,
 	input  logic  [7:0] write_DB_in,
 	output logic  [7:0] DB_out,
 
-	// Clocking
 	input logic         reset,
 	input logic         clk_sys,
 	input logic         ce,
-	output logic        mclk0,     // This serves as tia_clk
+	output logic        mclk0,
 	output logic        mclk1,
 	output logic        tia_clk_x2,
 	output logic        pclk0,
 	output logic        pclk1,
 	input logic         pclk2,
 
-	// Chip Select lines
 	output logic        cs_ram0,
 	output logic        cs_ram1,
 	output logic        cs_riot,
 	output logic        cs_tia,
 	output logic        cs_maria,
 
-	// Maria configuration
 	input logic         RW,
 	input logic         maria_en,
 
-	// Video
 	output logic [7:0]  YC,
 	output logic        hsync,
 	output logic        vsync,
@@ -59,43 +53,16 @@ module maria(
 	output logic        vblank,
 	output logic        vblank_ex,
 
-	// CPU
 	output logic        NMI_n,
 	output logic        halt_n,
 	output logic        ready,
 
-	// Abstract Pins
-	output logic        drive_AB,    // Used to overcome the lack of a bidirectional bus
-	input  logic        hide_border, // Option to hide the boarder
-	input  logic        bypass_bios, // Flag to tell maria to initialize to a post-bios state
-	input  logic        PAL          // Indicates the system is in either NTSC or PAL
+	output logic        drive_AB,
+	input  logic        hide_border,
+	input  logic        bypass_bios,
+	input  logic        PAL
 
 );
-
-	/* Original Pins:
-		A0-A15        memory address bus
-		D0-D7         memory data bus
-		Vss           ground
-		Vdd           power
-		/NMI          output to cpu
-		XTAL1         14 MHz input
-		XTAL2         main clock output
-		MEN           Maria enable input. When lo, video is off and memory map is 2600
-		Ø2            phase 2 clock input
-		TCLK          TIA main/4 clock
-		Ø0            phase 0 clock output. 1.79M or 1.19M
-		DEL           delay line control voltage input
-		/SRAM0-1      RAM chipselects
-		/SEL32        RIOT chipselect
-		/TIASEL       TIA chipselect
-		R/W           Read/write input
-		/HALT         cpu halt output
-		READY         cpu ready output
-		LUM0-3        luminance output
-		COLOR         color output
-		BLANK         blank output
-		SYNC          video sync output
-	*/
 
 	logic [7:0]       ctrl;
 	logic [24:0][7:0] color_map;
@@ -136,11 +103,9 @@ module maria(
 	logic             tia_clk_en;
 	logic [3:0]       tia_enable_count = 4'd2;
 
-	// Apply color kill if needed
 	assign YC = UV_out & (ctrl[7] ? 8'h0F : 8'hFF);
 	assign drive_AB = ABEN && maria_en;
 
-	// Maria being enabled is a condition for NMI
 	assign NMI_n = NMI_ung_n || ~maria_en;
 	assign halt_n = ~halt_en;
 	assign ready = ~pclk ? (lrc || ready_int) : old_ready;
@@ -165,8 +130,6 @@ module maria(
 		if (ce) begin
 			old_men <= maria_en;
 
-			// If maria enabled rises, the CPU clock is held in a state
-			// of reset for 5 master oscillator cycles.
 			if (~old_men && maria_en) begin
 				men_count <= 4'd5;
 			end
@@ -209,9 +172,6 @@ module maria(
 				end
 			end
 
-			// The timing schematic has no reset input to the processor-clock
-			// generator. Keep PCLK0 running while the model reset clears
-			// functional state so SALLY can recognize reset.
 			if (mclk1) begin
 				if (clock_div != 3'd0)
 					clock_div <= clock_div - 1'd1;
@@ -334,3 +294,4 @@ module maria(
 	);
 
 endmodule
+

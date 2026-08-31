@@ -6,3 +6,5 @@
 
 #set_false_path -rise_from   {*emu|reset}
 #set_false_path -to   {*emu|reset}
+
+set_clock_groups -asynchronous    -group [get_clocks { *|pll|pll_inst|altera_pll_i|*[0].*|divclk                         *|pll|pll_inst|altera_pll_i|*[1].*|divclk                         *|pll|pll_inst|altera_pll_i|*[2].*|divclk }]    -group [get_clocks { *|pll|pll_inst|altera_pll_i|*[3].*|divclk }]

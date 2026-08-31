@@ -1,89 +1,29 @@
-typedef enum bit[4:0] { 
-	BANK00, BANKF8, BANKF6, BANKFE, BANKE0,   BANK3F,   BANKF4,  BANKP2,
-	BANKFA, BANKCV, BANK2K, BANKUA, BANKE7,   BANKF0,   BANK32,  BANKAR,
+typedef enum bit[4:0] {
+	BANK00, BANKF8, BANKF6, BANKFE, BANKE0, BANK3F, BANKF4, BANKP2,
+	BANKFA, BANKCV, BANK2K, BANKUA, BANKE7, BANKF0, BANK32, BANKAR,
 	BANK3E, BANKSB, BANKWD, BANKEF, BANKJANE, BANKDPCP, BANKCTY, BANKCDF,
-	BANKEND
+	BANKFA2, BANKEND
 } bss_type ;
 
 module detect2600
 (
 	input clk,
 	input reset,
-	input [15:0] addr,
+	input [24:0] addr,
 	input enable,
 	input [31:0] cart_size,
 	input [7:0] data,
 	output reg [4:0] force_bs,
-	output reg sc
+	output reg sc,
+	output [1:0] cdf_family,
+	output quadtari
 );
 
 wire hasMatch3F;
 
-always @(posedge clk) begin
-sc<=0;
-if (hasMatchFE) force_bs<=BANKFE;
-else if (hasMatchE0 && cart_size=='d8192) force_bs<=BANKE0;
-else if (hasMatch3E && cart_size>'d4096)  force_bs<=BANK3E;
-else if (hasMatch3F && cart_size>'d4096) force_bs<=BANK3F;
-else if (hasMatchSB && cart_size>='d131072) force_bs<=BANKSB;
-else if (hasMatchEF && cart_size=='d65536 ) begin
-	force_bs<=BANKEF;
-	sc <= has_sc;
-end
-else if (hasMatchDPCP && cart_size=='d32768) force_bs<=BANKDPCP;
-else if (hasMatchCTY && cart_size=='d32768) force_bs<=BANKCTY;
-else if (hasMatchCTY && cart_size=='d61440) force_bs<=BANKCTY; // F4 banking works for the one game that uses this
-else if (hasMatchCDF && cart_size>='d32768) force_bs<=BANKCDF;
-else if (hasMatchCV) force_bs<=BANKCV;
-else if (hasMatchJANE && cart_size=='d16384) force_bs<=BANKJANE;
-else if (hasMatchE7) force_bs<=BANKE7;
-else if (cart_size == 'h2000 && hasMatchWD ) force_bs<=BANKWD; //  8k 
-else if (cart_size == 'h2000 && hasMatchUA ) force_bs<=BANKUA; //  8k and less
-else if (cart_size == 'h1800) force_bs<=BANKAR; //  multiple of 8448 is cassette  AR 
-else if (cart_size == 'h2100) force_bs<=BANKAR; //  multiple of 8448 is cassette  AR 
-else if (cart_size == 'h4200) force_bs<=BANKAR; //  multiple of 8448 is cassette  AR 
-else if (cart_size == 'h6300) force_bs<=BANKAR; //  multiple of 8448 is cassette  AR 
-else if (cart_size == 'h8400) force_bs<=BANKAR; //  multiple of 8448 is cassette  AR 
-else if (cart_size <= 'h0800) force_bs<=BANK2K; //  2k and less
-else if (cart_size <= 'h1000) force_bs<=BANK00; //  4k and less
-else if (cart_size <= 'h2000) begin 
-	force_bs<=BANKF8; //  8k and less
-        sc <= has_sc;
-end
-else if (cart_size >= 'h2800 && cart_size <= 'h2900) force_bs<=BANKP2; // 10k+256 and less, should be > 10k < 10k+256?
-else if (cart_size <= 'h3000) force_bs<=BANKFA; // 12k and less
-else if (cart_size <= 'h4000) begin
-	force_bs<=BANKF6; // 16k and less
-        sc <= has_sc;
-end
-else if (cart_size <= 'h8000) begin
-	force_bs<=BANKF4; // 32k and less
-        sc <= has_sc;
-end
-else if (cart_size < 'h10000) force_bs<=BANK32; // 64k and less
-else if (cart_size == 'h10000) force_bs<=BANKF0; // 64k  - there are a few checks here
-else force_bs<=0;
-
-
-//wire hasMatchFE = (~hasMatchF8) && (hasMatchFE_0 | hasMatchFE_1 | hasMatchFE_2 | hasMatchFE_3 );
-//$display(" hasMatchF8 %x hasMatchFE_0 %x hasMatchFE_1 %x hasMatcHFE_2 %x hasMatchFE_3 %x",hasMatchF8,hasMatchFE_0,hasMatchFE_1,hasMatchFE_2,hasMatchFE_3);
-//$display(" hasMatchFE %x ",hasMatchFE);
-end
-
-//----------------------------
-//  EF detector
-//----------------------------
 wire hasMatchEF_0 , hasMatchEF_1, hasMatchEF_2,hasMatchEF_3;
 wire hasMatchEF = hasMatchEF_0 | hasMatchEF_1| hasMatchEF_2 | hasMatchEF_3;
 
-/*
-  uInt8 signature[4][3] = {
-    { 0x0C, 0xE0, 0xFF },  // NOP $FFE0
-    { 0xAD, 0xE0, 0xFF },  // LDA $FFE0
-    { 0x0C, 0xE0, 0x1F },  // NOP $1FE0
-    { 0xAD, 0xE0, 0x1F }   // LDA $1FE0
-  };
-*/
 match_bytes #(
 	.num_bytes(8'd3),
 	.pattern({ 8'h0C, 8'hE0 , 8'hFF }),
@@ -133,9 +73,6 @@ match_bytes #(
 	.hasMatch(hasMatchEF_3)
 );
 
-//----------------------------
-//  DPC+ detector
-//----------------------------
 wire hasMatchDPCP;
 match_bytes #(
 	.num_bytes(8'd4),
@@ -149,9 +86,7 @@ match_bytes #(
 	.data(data),
 	.hasMatch(hasMatchDPCP)
 );
-//----------------------------
-//  CTY detector
-//----------------------------
+
 wire hasMatchCTY;
 match_bytes #(
 	.num_bytes(8'd5),
@@ -166,8 +101,37 @@ match_bytes #(
 	.hasMatch(hasMatchCTY)
 );
 
-wire hasMatchCDF =  hasMatchCDF_1  | hasMatchCDF_2;
-wire  hasMatchCDF_1,hasMatchCDF_2;
+wire  hasMatchCDF_1,hasMatchCDF_2,hasMatchCDF_J;
+wire hasMatchCDF =  hasMatchCDF_1  | hasMatchCDF_2 | hasMatchCDF_J;
+
+wire hasMatchQT_champ, hasMatchQT_plain;
+assign quadtari = hasMatchQT_champ | hasMatchQT_plain;
+
+match_bytes #(
+	.num_bytes(8'd8),
+	.pattern({ 8'h1B, 8'h1F, 8'h0B, 8'h0E, 8'h1E, 8'h0B, 8'h1C, 8'h13 }),
+	.needmatches(8'd1)
+	) match_bytes_QT_champ(
+	.addr(addr),
+	.enable(enable),
+	.clk(clk),
+	.reset(reset),
+	.data(data),
+	.hasMatch(hasMatchQT_champ)
+);
+
+match_bytes #(
+	.num_bytes(8'd8),
+	.pattern({ 8'h51, 8'h55, 8'h41, 8'h44, 8'h54, 8'h41, 8'h52, 8'h49 }),
+	.needmatches(8'd1)
+	) match_bytes_QT_plain(
+	.addr(addr),
+	.enable(enable),
+	.clk(clk),
+	.reset(reset),
+	.data(data),
+	.hasMatch(hasMatchQT_plain)
+);
 
 match_bytes #(
 	.num_bytes(8'd3),
@@ -193,51 +157,26 @@ match_bytes #(
 	.data(data),
 	.hasMatch(hasMatchCDF_2)
 );
+match_bytes #(
+	.num_bytes(8'd4),
+	.pattern({ 8'h43, 8'h44 , 8'h46, 8'h4A }),
+	.needmatches(8'd1)
+	) match_bytes_CDF_J(
+	.addr(addr),
+	.enable(enable),
+	.clk(clk),
+	.reset(reset),
+	.data(data),
+	.hasMatch(hasMatchCDF_J)
+);
 
-
-
-/*
-wire hasMatchEF = hasMatchEF_1 & hasMatchEF_2 & hasMatchEF_3 & hasMatchEF_4 ;
-reg hasMatchEF_1;
-reg hasMatchEF_2;
-reg hasMatchEF_3;
-reg hasMatchEF_4;
+reg [1:0] cdf_family_r;
 always @(posedge clk) begin
-$display("hasMatchEF_1 %x %x %x %x %x",hasMatchEF_1,hasMatchEF_2,hasMatchEF_3,hasMatchEF_4,hasMatchEF);
-  if (addr=='hFFF8)
-  begin
-	hasMatchEF_1<=1'b0;
-        if (data=='h45) 
-		hasMatchEF_1 <= 1'b1;
-  end
-  if (addr=='hFFF9)
-  begin
-	hasMatchEF_2<=1'b0;
-        if (data=='h46) 
-		hasMatchEF_2 <= 1'b1;
-  end
-  if (addr=='hFFF0)
-  begin
-$display("data %x",data);
-	hasMatchEF_3<=1'b0;
-        if (data=='h45) 
-		hasMatchEF_3 <= 1'b1;
-  end
-  if (addr=='hFFFA)
-  begin
-	hasMatchEF_4<=1'b0;
-        if (data=='h46) 
-		hasMatchEF_4 <= 1'b1;
-  end
-   
+	if (hasMatchCDF_2)      cdf_family_r <= 2'b10;
+	else if (hasMatchCDF_J) cdf_family_r <= 2'b01;
+	else                    cdf_family_r <= 2'b00;
+	if (reset) cdf_family_r <= 2'b00;
 end
-*/
-
-
-
-//----------------------------
-//  3F detector
-//----------------------------
 
 match_bytes #(
 	.num_bytes(8'd2),
@@ -252,29 +191,8 @@ match_bytes #(
 	.hasMatch(hasMatch3F)
 );
 
-
-//----------------------------
-//  3E detector
-//----------------------------
-
-
-/*
-bool CartDetector::isProbably3E(const ByteBuffer& image, size_t size)
-{
-  // 3E cart RAM bankswitching is triggered by storing the bank number
-  // in address 3E using 'STA $3E', ROM bankswitching is triggered by
-  // storing the bank number in address 3F using 'STA $3F'.
-  // We expect the latter will be present at least 2 times, since there
-  // are at least two banks
-
-  uInt8 signature1[] = { 0x85, 0x3E };  // STA $3E
-  uInt8 signature2[] = { 0x85, 0x3F };  // STA $3F
-  return searchForBytes(image, size, signature1, 2)
-    && searchForBytes(image, size, signature2, 2, 2);
-}
-*/
-wire hasMatch3E = hasMatch3E_1 & hasMatch3F;
 wire hasMatch3E_1;
+wire hasMatch3E = hasMatch3E_1 & hasMatch3F;
 match_bytes #(
 	.num_bytes(8'd2),
 	.pattern({ 8'h85, 8'h3E }),
@@ -288,19 +206,6 @@ match_bytes #(
 	.hasMatch(hasMatch3E_1)
 );
 
-//------------------------------
-// WD detector
-//-------------------------------
-/*
-bool CartDetector::isProbablyWD(const ByteBuffer& image, size_t size)
-{
-  // WD cart bankswitching switches banks by accessing address 0x30..0x3f
-  uInt8 signature[1][3] = {
-    { 0xA5, 0x39, 0x4C }  // LDA $39, JMP
-  };
-  return searchForBytes(image, size, signature[0], 3);
-}
-*/
 wire hasMatchWD;
 match_bytes #(
 	.num_bytes(8'd3),
@@ -315,26 +220,8 @@ match_bytes #(
 	.hasMatch(hasMatchWD)
 );
 
-//------------------------------
-// SB detector
-//-------------------------------
-
-/*
-bool CartDetector::isProbablySB(const ByteBuffer& image, size_t size)
-{
-  // SB cart bankswitching switches banks by accessing address 0x0800
-  uInt8 signature[2][3] = {
-    { 0xBD, 0x00, 0x08 },  // LDA $0800,x
-    { 0xAD, 0x00, 0x08 }   // LDA $0800
-  };
-  if(searchForBytes(image, size, signature[0], 3))
-    return true;
-  else
-    return searchForBytes(image, size, signature[1], 3);
-}
-*/
-wire hasMatchSB = hasMatchSB_1 |  hasMatchSB_2;
 wire hasMatchSB_1,hasMatchSB_2;
+wire hasMatchSB = hasMatchSB_1 |  hasMatchSB_2;
 match_bytes #(
 	.num_bytes(8'd3),
 	.pattern({ 8'hBD,8'h00, 8'h08 }),
@@ -359,35 +246,7 @@ match_bytes #(
 	.data(data),
 	.hasMatch(hasMatchSB_2)
 );
-//------------------------------
-// E7 detector
-//-------------------------------
 
-/*
-bool CartDetector::isProbablyE7(const ByteBuffer& image, size_t size)
-{
-  // E7 cart bankswitching is triggered by accessing addresses
-  // $FE0 to $FE6 using absolute non-indexed addressing
-  // To eliminate false positives (and speed up processing), we
-  // search for only certain known signatures
-  // Thanks to "stella@casperkitty.com" for this advice
-  // These signatures are attributed to the MESS project
-  uInt8 signature[7][3] = {
-	{ 0xAD, 0xE2, 0xFF },  // LDA $FFE2
-	{ 0xAD, 0xE5, 0xFF },  // LDA $FFE5
-	{ 0xAD, 0xE5, 0x1F },  // LDA $1FE5
-	{ 0xAD, 0xE7, 0x1F },  // LDA $1FE7
-	{ 0x0C, 0xE7, 0x1F },  // NOP $1FE7
-	{ 0x8D, 0xE7, 0xFF },  // STA $FFE7
-	{ 0x8D, 0xE7, 0x1F }   // STA $1FE7
-  };
-  for(uInt32 i = 0; i < 7; ++i)
-	if(searchForBytes(image, size, signature[i], 3))
-	  return true;
-
-  return false;
-}
-*/
 wire hasMatchE7_0 , hasMatchE7_1 , hasMatchE7_2 , hasMatchE7_3 , hasMatchE7_4 , hasMatchE7_5 , hasMatchE7_6;
 wire hasMatchE7 = hasMatchE7_0 | hasMatchE7_1 | hasMatchE7_2 | hasMatchE7_3 | hasMatchE7_4 | hasMatchE7_5 | hasMatchE7_6;
 match_bytes #(
@@ -475,16 +334,6 @@ match_bytes #(
 	.hasMatch(hasMatchE7_6)
 );
 
-//------------------------------
-// JANE detector
-//-------------------------------
-/*
-bool CartDetector::isProbablyJANE(ByteSpan image)
-{
-  static constexpr std::array<uInt8, 4> signature = { 0xad, 0xf1, 0xff, 0x60 };  // LDA $FFF1
-  return searchForBytes(image, signature);
-}
-*/
 wire hasMatchJANE;
 match_bytes #(
 	.num_bytes(8'd4),
@@ -499,35 +348,6 @@ match_bytes #(
 	.hasMatch(hasMatchJANE)
 );
 
-//------------------------------
-// E0 detector
-//-------------------------------
-/*
-bool CartDetector::isProbablyE0(const ByteBuffer& image, size_t size)
-{
-  // E0 cart bankswitching is triggered by accessing addresses
-  // $FE0 to $FF9 using absolute non-indexed addressing
-  // To eliminate false positives (and speed up processing), we
-  // search for only certain known signatures
-  // Thanks to "stella@casperkitty.com" for this advice
-  // These signatures are attributed to the MESS project
-  uInt8 signature[8][3] = {
-	{ 0x8D, 0xE0, 0x1F },  // STA $1FE0
-	{ 0x8D, 0xE0, 0x5F },  // STA $5FE0
-	{ 0x8D, 0xE9, 0xFF },  // STA $FFE9
-	{ 0x0C, 0xE0, 0x1F },  // NOP $1FE0
-	{ 0xAD, 0xE0, 0x1F },  // LDA $1FE0
-	{ 0xAD, 0xE9, 0xFF },  // LDA $FFE9
-	{ 0xAD, 0xED, 0xFF },  // LDA $FFED
-	{ 0xAD, 0xF3, 0xBF }   // LDA $BFF3
-  };
-  for(uInt32 i = 0; i < 8; ++i)
-	if(searchForBytes(image, size, signature[i], 3))
-	  return true;
-
-  return false;
-}
-*/
 wire  hasMatchE0_0 , hasMatchE0_1 , hasMatchE0_2 , hasMatchE0_3 , hasMatchE0_4 , hasMatchE0_5 , hasMatchE0_6 , hasMatchE0_7;
 wire hasMatchE0 = hasMatchE0_0 | hasMatchE0_1 | hasMatchE0_2 | hasMatchE0_3 | hasMatchE0_4 | hasMatchE0_5 | hasMatchE0_6 | hasMatchE0_7;
 match_bytes #(
@@ -627,16 +447,10 @@ match_bytes #(
 	.hasMatch(hasMatchE0_7)
 );
 
-//------------------------------
-// FE detector
-//-------------------------------
-// we need to check is FE and not F8
-
 wire hasMatchF8_0 , hasMatchF8_1;
 wire hasMatchF8 = hasMatchF8_0 | hasMatchF8_1;
 wire hasMatchFE_0 , hasMatchFE_1 , hasMatchFE_2 , hasMatchFE_3;
 wire hasMatchFE = (~hasMatchF8) && (hasMatchFE_0 | hasMatchFE_1 | hasMatchFE_2 | hasMatchFE_3 );
-
 
 match_bytes #(
 	.num_bytes(8'd3),
@@ -662,7 +476,6 @@ match_bytes #(
 	.data(data),
 	.hasMatch(hasMatchF8_1)
 );
-
 
 match_bytes #(
 	.num_bytes(8'd5),
@@ -712,49 +525,9 @@ match_bytes #(
 	.data(data),
 	.hasMatch(hasMatchFE_3)
 );
-/*
-
-
-
-	// First check for *potential* F8
-	uInt8 signature[2][3] = {
-	  { 0x8D, 0xF9, 0x1F },  // STA $1FF9
-	  { 0x8D, 0xF9, 0xFF }   // STA $FFF9
-	};
-	bool f8 = searchForBytes(image, size, signature[0], 3, 2) ||
-			  searchForBytes(image, size, signature[1], 3, 2);
-
-
-	else if(isProbablyFE(image, size) && !f8)
-	  type = Bankswitch::Type::_FE;
-
-
-bool CartDetector::isProbablyFE(const ByteBuffer& image, size_t size)
-{
-  // FE bankswitching is very weird, but always seems to include a
-  // 'JSR $xxxx'
-  // These signatures are attributed to the MESS project
-  uInt8 signature[4][5] = {
-	{ 0x20, 0x00, 0xD0, 0xC6, 0xC5 },  // JSR $D000; DEC $C5
-	{ 0x20, 0xC3, 0xF8, 0xA5, 0x82 },  // JSR $F8C3; LDA $82
-	{ 0xD0, 0xFB, 0x20, 0x73, 0xFE },  // BNE $FB; JSR $FE73
-	{ 0x20, 0x00, 0xF0, 0x84, 0xD6 }   // JSR $F000; $84, $D6
-  };
-  for(uInt32 i = 0; i < 4; ++i)
-	if(searchForBytes(image, size, signature[i], 5))
-	  return true;
-
-  return false;
-}
-*/
-
-//------------------------------
-// CV detector
-//-------------------------------
 
 wire hasMatchCV_0 , hasMatchCV_1;
 wire hasMatchCV = hasMatchCV_0 | hasMatchCV_1;
-
 
 match_bytes #(
 	.num_bytes(8'd3),
@@ -780,25 +553,6 @@ match_bytes #(
 	.data(data),
 	.hasMatch(hasMatchCV_1)
 );
-/*
-bool CartDetector::isProbablyCV(const ByteBuffer& image, size_t size)
-{
-  // CV RAM access occurs at addresses $f3ff and $f400
-  // These signatures are attributed to the MESS project
-  uInt8 signature[2][3] = {
-	{ 0x9D, 0xFF, 0xF3 },  // STA $F3FF.X
-	{ 0x99, 0x00, 0xF4 }   // STA $F400.Y
-  };
-  if(searchForBytes(image, size, signature[0], 3))
-	return true;
-  else
-	return searchForBytes(image, size, signature[1], 3);
-}
-*/
-
-//------------------------------
-// UA detector
-//-------------------------------
 
 wire hasMatchUA_0 , hasMatchUA_1 , hasMatchUA_2 , hasMatchUA_3 , hasMatchUA_4 , hasMatchUA_5 , hasMatchUA_6 , hasMatchUA_7 , hasMatchUA_8 , hasMatchUA_9 , hasMatchUA_10 , hasMatchUA_11;
 wire hasMatchUA = hasMatchUA_0 | hasMatchUA_1 | hasMatchUA_2 | hasMatchUA_3 | hasMatchUA_4 | hasMatchUA_5 | hasMatchUA_6 | hasMatchUA_7 | hasMatchUA_8 | hasMatchUA_9 | hasMatchUA_10 | hasMatchUA_11;
@@ -828,7 +582,6 @@ match_bytes #(
 	.data(data),
 	.hasMatch(hasMatchUA_1)
 );
-
 
 match_bytes #(
 	.num_bytes(8'd3),
@@ -960,62 +713,8 @@ match_bytes #(
 	.hasMatch(hasMatchUA_11)
 );
 
-/*
-bool CartDetector::isProbablyUA(ByteSpan image)
-{
-  // UA cart bankswitching switches to bank 1 by accessing address 0x240
-  // using 'STA $240' or 'LDA $240'.
-  // Brazilian (Digivision) cart bankswitching switches to bank 1 by accessing
-  // address 0x2C0 using 'BIT $2C0', 'STA $2C0', 'LDA $2C0' or 'BIT $FB0'
-  static constexpr BSPF::array2D<uInt8, 11, 3> signature = {{
-    { 0x8D, 0x40, 0x02 },  // STA $240 (Funky Fish, Pleiades)
-    { 0xAD, 0x40, 0x02 },  // LDA $240 (???)
-    { 0xBD, 0x1F, 0x02 },  // LDA $21F,X (Gingerbread Man)
-    { 0x2C, 0xC0, 0x02 },  // BIT $2C0 (Time Pilot)
-    { 0x8D, 0xC0, 0x02 },  // STA $2C0 (Fathom, Vanguard)
-    { 0xAD, 0xC0, 0x02 },  // LDA $2C0 (Mickey)
-    { 0x2C, 0xB0, 0x0F },  // BIT $FB0 (Digivision Beamrider)
-    { 0x2C, 0xC0, 0x0F },  // BIT $FC0  (H.E.R.O., Kung-Fu Master)
-    { 0x8D, 0xC0, 0x0F },  // STA $FC0  (Pole Position, Subterranea)
-    { 0xAD, 0xC0, 0x0F },  // LDA $FC0  (Front Line, Zaxxon)
-    { 0x2C, 0xC0, 0xEF }   // BIT $EFC0 (Motocross)
-  }};
-  return std::ranges::any_of(signature, [&](const auto& sig) {
-    return searchForBytes(image, sig);
-  });
-}
-*/
-
-//------------------------------
-// SC detector
-//-------------------------------
-//
-
-
-/*
-bool CartDetector::isProbablySC(const ByteBuffer& image, size_t size)
-{
-  // We assume a Superchip cart repeats the first 128 bytes for the second
-  // 128 bytes in the RAM area, which is the first 256 bytes of each 4K bank
-  const uInt8* ptr = image.get();
-  while(size)
-  {
-	if(std::memcmp(ptr, ptr + 128, 128) != 0)
-	  return false;
-
-	ptr  += 4_KB;
-	size -= 4_KB;
-  }
-  return true;
-}
-*/
-
-// grab and save the CRC for the first 128 bytes
-// each 4k check 128 bytes, and fail if CRC doesn't match
 reg [31:0] sc_crc0,sc_crc1,sc_crc2;
 reg has_sc;
-
-// 80 - 100
 
 always @(posedge clk) begin
 	if (enable) begin
@@ -1050,30 +749,6 @@ always @(posedge clk) begin
 	end
 end
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 1999-2008 Easics NV.
-// This source file may be used and distributed without restriction
-// provided that this copyright statement is not removed from the file
-// and that any derivative work contains the original copyright notice
-// and the associated disclaimer.
-//
-// THIS SOURCE FILE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS
-// OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
-// WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-//
-// Purpose : synthesizable CRC function
-//   * polynomial: x^32 + x^26 + x^23 + x^22 + x^16 + x^12 + x^11 + x^10 + x^8 + x^7 + x^5 + x^4 + x^2 + x^1 + 1
-//   * data width: 8
-//
-// Info : tools@easics.be
-//        http://www.easics.com
-////////////////////////////////////////////////////////////////////////////////
-  // polynomial: x^32 + x^26 + x^23 + x^22 + x^16 + x^12 + x^11 + x^10 + x^8 + x^7 + x^5 + x^4 + x^2 + x^1 + 1
-  // data width: 8
-  // convention: the first serial bit is D[7]
   function [31:0] nextCRC32_D8;
 
 	input [7:0] Data;
@@ -1121,20 +796,82 @@ end
   end
   endfunction
 
+reg fa2_tail_zero;
+always @(posedge clk) begin
+	if (enable) begin
+		if (addr == 0)
+			fa2_tail_zero <= 1'b1;
+		else if (addr >= 25'd29696 && addr < 25'd32768 && data != 8'd0)
+			fa2_tail_zero <= 1'b0;
+	end
+end
+
+always @(posedge clk) begin :bs_decision
+sc<=0;
+if (hasMatchCDF && cart_size>='d32768) force_bs<=BANKCDF;
+else if (hasMatchFE) force_bs<=BANKFE;
+else if (hasMatchE0 && cart_size=='d8192) force_bs<=BANKE0;
+else if (hasMatch3E && cart_size>'d4096)  force_bs<=BANK3E;
+else if (hasMatch3F && cart_size>'d4096) force_bs<=BANK3F;
+else if (hasMatchSB && cart_size>='d131072) force_bs<=BANKSB;
+else if (hasMatchEF && cart_size=='d65536 ) begin
+	force_bs<=BANKEF;
+	sc <= has_sc;
+end
+else if (hasMatchDPCP && cart_size=='d32768) force_bs<=BANKDPCP;
+else if (hasMatchCTY && cart_size=='d32768) force_bs<=BANKCTY;
+else if (hasMatchCTY && cart_size=='d61440) force_bs<=BANKCTY;
+else if (hasMatchCV) force_bs<=BANKCV;
+else if (hasMatchJANE && cart_size=='d16384) force_bs<=BANKJANE;
+else if (hasMatchE7) force_bs<=BANKE7;
+else if (cart_size == 'h2000 && hasMatchWD ) force_bs<=BANKWD;
+else if (cart_size == 'h2000 && hasMatchUA ) force_bs<=BANKUA;
+else if (cart_size == 'h1800) force_bs<=BANKAR;
+else if (cart_size == 'h2100) force_bs<=BANKAR;
+else if (cart_size == 'h4200) force_bs<=BANKAR;
+else if (cart_size == 'h6300) force_bs<=BANKAR;
+else if (cart_size == 'h8400) force_bs<=BANKAR;
+else if (cart_size <= 'h0800) force_bs<=BANK2K;
+else if (cart_size <= 'h1000) force_bs<=BANK00;
+else if (cart_size <= 'h2000) begin
+	force_bs<=BANKF8;
+        sc <= has_sc;
+end
+else if (cart_size >= 'h2800 && cart_size <= 'h2900) force_bs<=BANKP2;
+else if (cart_size <= 'h3000) force_bs<=BANKFA;
+else if (cart_size <= 'h4000) begin
+	force_bs<=BANKF6;
+        sc <= has_sc;
+end
+else if (cart_size == 'd24576 || cart_size == 'd28672) force_bs<=BANKFA2;
+else if (cart_size == 'd32768 && fa2_tail_zero && !has_sc) force_bs<=BANKFA2;
+else if (cart_size <= 'h8000) begin
+	force_bs<=BANKF4;
+        sc <= has_sc;
+end
+else if (cart_size < 'h10000) force_bs<=BANK32;
+else if (cart_size == 'h10000) force_bs<=BANKF0;
+else if (cart_size == 'd131072 || cart_size == 'd262144) force_bs<=BANKSB;
+else force_bs<=0;
+
+end
+
+assign cdf_family = cdf_family_r;
+
 endmodule: detect2600
 
 module match_bytes
 (
 	input clk,
 	input reset,
-	input  [15:0] addr,
+	input  [24:0] addr,
 	input  enable,
-	input  [7:0] data,     // data in,
+	input  [7:0] data,
 	output reg hasMatch
 );
 
 parameter [7:0] num_bytes = 8'd1;
-parameter [(num_bytes*8)-1:0] pattern = 0;
+parameter [(num_bytes*8)-1:0] pattern = '0;
 parameter [7:0] needmatches=8'b1;
 
 reg [(num_bytes*8)-1:0] lastPattern;
@@ -1145,8 +882,8 @@ always @(posedge clk)
 begin
 	if (enable)
 	begin
-		// use address 0 as reset since reset is high during cart loads
-		if (addr==16'b0)
+
+		if (addr==25'b0)
 		begin
 			curMatch<=8'b0;
 			hasMatch<=0;
@@ -1171,8 +908,4 @@ begin
 end
 
 endmodule: match_bytes
-
-
-
-
 

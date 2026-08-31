@@ -28,84 +28,81 @@
 // clocking that make the outcome of various scenarios fairly unpredictable, and almost
 // all of these edge cases seem to come up in one game or another. Thus, I erred on the side
 // of accuracy at the price of efficiency.
-
 typedef enum bit [5:0] {
-	VSYNC   = 6'h00,  // Write: vertical sync set-clear (D1)
-	VBLANK  = 6'h01,  // Write: vertical blank set-clear (D7-6,D1)
-	WSYNC   = 6'h02,  // Write: wait for leading edge of hrz. blank (strobe)
-	RSYNC   = 6'h03,  // Write: reset hrz. sync counter (strobe)
-	NUSIZ0  = 6'h04,  // Write: number-size player-missle 0 (D5-0)
-	NUSIZ1  = 6'h05,  // Write: number-size player-missle 1 (D5-0)
-	COLUP0  = 6'h06,  // Write: color-lum player 0 (D7-1)
-	COLUP1  = 6'h07,  // Write: color-lum player 1 (D7-1)
-	COLUPF  = 6'h08,  // Write: color-lum playfield (D7-1)
-	COLUBK  = 6'h09,  // Write: color-lum background (D7-1)
-	CTRLPF  = 6'h0a,  // Write: cntrl playfield ballsize & coll. (D5-4,D2-0)
-	REFP0   = 6'h0b,  // Write: reflect player 0 (D3)
-	REFP1   = 6'h0c,  // Write: reflect player 1 (D3)
-	PF0     = 6'h0d,  // Write: playfield register byte 0 (D7-4)
-	PF1     = 6'h0e,  // Write: playfield register byte 1 (D7-0)
-	PF2     = 6'h0f,  // Write: playfield register byte 2 (D7-0)
-	RESP0   = 6'h10,  // Write: reset player 0 (strobe)
-	RESP1   = 6'h11,  // Write: reset player 1 (strobe)
-	RESM0   = 6'h12,  // Write: reset missle 0 (strobe)
-	RESM1   = 6'h13,  // Write: reset missle 1 (strobe)
-	RESBL   = 6'h14,  // Write: reset ball (strobe)
-	AUDC0   = 6'h15,  // Write: audio control 0 (D3-0)
-	AUDC1   = 6'h16,  // Write: audio control 1 (D4-0)
-	AUDF0   = 6'h17,  // Write: audio frequency 0 (D4-0)
-	AUDF1   = 6'h18,  // Write: audio frequency 1 (D3-0)
-	AUDV0   = 6'h19,  // Write: audio volume 0 (D3-0)
-	AUDV1   = 6'h1a,  // Write: audio volume 1 (D3-0)
-	GRP0    = 6'h1b,  // Write: graphics player 0 (D7-0)
-	GRP1    = 6'h1c,  // Write: graphics player 1 (D7-0)
-	ENAM0   = 6'h1d,  // Write: graphics (enable) missle 0 (D1)
-	ENAM1   = 6'h1e,  // Write: graphics (enable) missle 1 (D1)
-	ENABL   = 6'h1f,  // Write: graphics (enable) ball (D1)
-	HMP0    = 6'h20,  // Write: horizontal motion player 0 (D7-4)
-	HMP1    = 6'h21,  // Write: horizontal motion player 1 (D7-4)
-	HMM0    = 6'h22,  // Write: horizontal motion missle 0 (D7-4)
-	HMM1    = 6'h23,  // Write: horizontal motion missle 1 (D7-4)
-	HMBL    = 6'h24,  // Write: horizontal motion ball (D7-4)
-	VDELP0  = 6'h25,  // Write: vertical delay player 0 (D0)
-	VDELP1  = 6'h26,  // Write: vertical delay player 1 (D0)
-	VDELBL  = 6'h27,  // Write: vertical delay ball (D0)
-	RESMP0  = 6'h28,  // Write: reset missle 0 to player 0 (D1)
-	RESMP1  = 6'h29,  // Write: reset missle 1 to player 1 (D1)
-	HMOVE   = 6'h2a,  // Write: apply horizontal motion (strobe)
-	HMCLR   = 6'h2b,  // Write: clear horizontal motion registers (strobe)
-	CXCLR   = 6'h2c,  // Write: clear collision latches (strobe)
-	ENBLO   = 6'h3D,  // Not a real register, used for ENABL OLD
-	GRP0O   = 6'h3E,  // Not a real register, used for GRP0 storage
-	GRP1O   = 6'h3F   // Not a real register, used for GRP1 storage
+	VSYNC   = 6'h00,
+	VBLANK  = 6'h01,
+	WSYNC   = 6'h02,
+	RSYNC   = 6'h03,
+	NUSIZ0  = 6'h04,
+	NUSIZ1  = 6'h05,
+	COLUP0  = 6'h06,
+	COLUP1  = 6'h07,
+	COLUPF  = 6'h08,
+	COLUBK  = 6'h09,
+	CTRLPF  = 6'h0a,
+	REFP0   = 6'h0b,
+	REFP1   = 6'h0c,
+	PF0     = 6'h0d,
+	PF1     = 6'h0e,
+	PF2     = 6'h0f,
+	RESP0   = 6'h10,
+	RESP1   = 6'h11,
+	RESM0   = 6'h12,
+	RESM1   = 6'h13,
+	RESBL   = 6'h14,
+	AUDC0   = 6'h15,
+	AUDC1   = 6'h16,
+	AUDF0   = 6'h17,
+	AUDF1   = 6'h18,
+	AUDV0   = 6'h19,
+	AUDV1   = 6'h1a,
+	GRP0    = 6'h1b,
+	GRP1    = 6'h1c,
+	ENAM0   = 6'h1d,
+	ENAM1   = 6'h1e,
+	ENABL   = 6'h1f,
+	HMP0    = 6'h20,
+	HMP1    = 6'h21,
+	HMM0    = 6'h22,
+	HMM1    = 6'h23,
+	HMBL    = 6'h24,
+	VDELP0  = 6'h25,
+	VDELP1  = 6'h26,
+	VDELBL  = 6'h27,
+	RESMP0  = 6'h28,
+	RESMP1  = 6'h29,
+	HMOVE   = 6'h2a,
+	HMCLR   = 6'h2b,
+	CXCLR   = 6'h2c,
+	ENBLO   = 6'h3D,
+	GRP0O   = 6'h3E,
+	GRP1O   = 6'h3F
 } write_registers;
 
 typedef enum bit [3:0] {
-	CXM0P   = 4'h0,  // Read collision: D7=(M0,P1); D6=(M0,P0)
-	CXM1P   = 4'h1,  // Read collision: D7=(M1,P0); D6=(M1,P1)
-	CXP0FB  = 4'h2,  // Read collision: D7=(P0,PF); D6=(P0,BL)
-	CXP1FB  = 4'h3,  // Read collision: D7=(P1,PF); D6=(P1,BL)
-	CXM0FB  = 4'h4,  // Read collision: D7=(M0,PF); D6=(M0,BL)
-	CXM1FB  = 4'h5,  // Read collision: D7=(M1,PF); D6=(M1,BL)
-	CXBLPF  = 4'h6,  // Read collision: D7=(BL,PF); D6=(unused)
-	CXPPMM  = 4'h7,  // Read collision: D7=(P0,P1); D6=(M0,M1)
-	INPT0   = 4'h8,  // Read pot port: D7
-	INPT1   = 4'h9,  // Read pot port: D7
-	INPT2   = 4'ha,  // Read pot port: D7
-	INPT3   = 4'hb,  // Read pot port: D7
-	INPT4   = 4'hc,  // Read P1 joystick trigger: D7
-	INPT5   = 4'hd   // Read P2 joystick trigger: D7
+	CXM0P   = 4'h0,
+	CXM1P   = 4'h1,
+	CXP0FB  = 4'h2,
+	CXP1FB  = 4'h3,
+	CXM0FB  = 4'h4,
+	CXM1FB  = 4'h5,
+	CXBLPF  = 4'h6,
+	CXPPMM  = 4'h7,
+	INPT0   = 4'h8,
+	INPT1   = 4'h9,
+	INPT2   = 4'ha,
+	INPT3   = 4'hb,
+	INPT4   = 4'hc,
+	INPT5   = 4'hd
 } read_registers;
 
 typedef struct packed {
-	logic edge_p1;  // Clock falling edge for all clocks
-	logic edge_p2;  // Clock rising edge for all clocks
-	logic level_p1; // Phase 1 for ripple counters
-	logic level_p2; // Phase 2 for ripple counters
-	logic clock;    // Clock for symmetric clocks
+	logic edge_p1;
+	logic edge_p2;
+	logic level_p1;
+	logic level_p2;
+	logic clock;
 } clock_t;
-
-/////////////////////////////////////////////////////////////////////////////////////////
 
 module lfsr_6
 (
@@ -186,7 +183,6 @@ module sr_latch
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module f_cell
 (
 	input  logic   clk,
@@ -235,7 +231,7 @@ module f_counter_ll
 	logic q_left, q_left_n, q_right, q_right_n;
 	logic f1_q_l_l;
 
-	assign clock.clock = 0; // Edges and clock are unused for the ripple counter low level
+	assign clock.clock = 0;
 	assign clock.edge_p1 = 0;
 	assign clock.edge_p2 = 0;
 	assign clock.level_p1 = ~(q_left || q_right);
@@ -312,9 +308,8 @@ module inverter_reg
 );
 
 	logic inv_latch = 0;
-	// FIXME: I'm treating this as a gate delay since I am using a 14mhz clock for this design,
-	// but with slower clocks, this may need to be continuous to work correctly.
-	assign out = /*set ? in : */inv_latch;
+
+	assign out = inv_latch;
 
 	always @(posedge clk) begin
 		if (set)
@@ -324,8 +319,6 @@ module inverter_reg
 	end
 endmodule
 
-
-/////////////////////////////////////////////////////////////////////////////////////////
 module f_counter
 (
 	input  logic   clk,
@@ -338,24 +331,10 @@ module f_counter
 	output logic   f1_q_l
 );
 
-// This component re-occurs throughout the design multiple times and contains two
-// F1 cells, effectively creating a counter that goes from 0 to 3 and then resets, flipping the
-// clock on two of the four positions.
-
-// This does not generate a symmetric clock. It is a four phase ripple counter, so PH1 and
-// PH2 will only be high for one clock each out of four clocks total.
-
 localparam EDGE_P1 = 3;
 localparam LEVEL_P1 = 0;
 localparam EDGE_P2 = 1;
 localparam LEVEL_P2 = 2;
-
-// Left      Right
-// q   qn    q   qn
-// 0    1    0    1
-// 1    0    0    1
-// 1    0    1    0
-// 0    1    1    0
 
 logic [1:0] f_count = 0;
 logic old_tick, old_reset;
@@ -370,7 +349,7 @@ assign clock.level_p2 = (f_count == LEVEL_P2);
 assign f1_qn_edge = tick_edge && f_count == 3;
 assign f1_qn = (f_count == 0 || f_count == 1);
 assign f1_q_l = reset ? 1'd1 : (~f1_qn ? 1'd0 : f1_qn_reg);
-assign clock.clock = 0; // Clock is unused for ripple counters!!
+assign clock.clock = 0;
 
 always_ff @(posedge clk) begin
 	old_tick <= tick;
@@ -382,7 +361,10 @@ always_ff @(posedge clk) begin
 
 	if (reset || sys_reset) begin
 		f_count <= reset ? 1'd1 : 2'd0;
-		if (sys_reset) old_tick <= 0;
+		if (sys_reset) begin
+			old_tick   <= 0;
+			f1_qn_reg  <= 0;
+		end
 		if (reset)
 			f1_qn_reg <= 1;
 	end
@@ -451,31 +433,24 @@ module cpuclk
 	);
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module clockgen
 (
-	input  logic   clk,    // System clock
+	input  logic   clk,
 	input  logic   is_7800,
-	input  logic   ce,     // clock enable. This is expected to be 7.159091 mhz, 2x the original atari oscillator
-	input  logic   reset,  // reset signal
-	input  logic   rsync,  // RSYNC register written to
-	input  logic   rsynd,  // rsynd wire coming from the horizontal lfsr decoder
-	input  logic   pext_1, // CPU clk Phi1 external (7800)
-	input  logic   pext_2, // CPU clk Phi0/2 external
-	output logic   rsynl,  // RSYNC latch
-	output clock_t pclk, // CPU clock
-	output clock_t hclk, // Horizontal clock
-	output clock_t oclk,  // Oscillator Clock
+	input  logic   ce,
+	input  logic   reset,
+	input  logic   rsync,
+	input  logic   rsynd,
+	input  logic   pext_1,
+	input  logic   pext_2,
+	output logic   rsynl,
+	output clock_t pclk,
+	output clock_t hclk,
+	output clock_t oclk,
 	output logic   phi0_ll
 );
 
 parameter PHI2_EXT = 0;
-// Fantastic Clocks and Where To Find Them
-// system oscillator - every other CE, 3.1mhz
-// motclk            - inverse of the system oscillator while not hblank
-// clkp              - pixel clk, inverse of the system oscillator
-// horizontal clk    - HP1 and HP2, every four clkp
-// pclk              - phi0 = phi2, phi1 = ~phi0. cpu clk, every 3 system oscillator clks
 
 logic oclk_tog;
 logic [2:0] pclk_div;
@@ -486,8 +461,8 @@ assign oclk.edge_p1 = ~oclk_tog && ce;
 assign oclk.level_p1 = ~oclk.clock;
 assign oclk.level_p2 = oclk.clock;
 
-assign pclk.edge_p2 = ((is_7800 || PHI2_EXT) ? pext_2 : (pclk_div == 2) && pclk_edge) && ~pclk.clock; // Phi0 // 0
-assign pclk.edge_p1 = (is_7800 ? pext_1 : (pclk_div == 5 || (resp0 && pclk_div == 0)) && pclk_edge) && pclk.clock; // Phi1 // 1
+assign pclk.edge_p2 = ((is_7800 || PHI2_EXT) ? pext_2 : (pclk_div == 2) && pclk_edge) && ~pclk.clock;
+assign pclk.edge_p1 = (is_7800 ? pext_1 : (pclk_div == 5 || (resp0 && pclk_div == 0)) && pclk_edge) && pclk.clock;
 assign pclk.level_p1 = ~pclk.clock;
 assign pclk.level_p2 = pclk.clock;
 
@@ -506,21 +481,10 @@ f_counter hclk_counter
 
 wire resp0 = (hclk.level_p2 && rsynd) || reset;
 
-// This is an original cpu clock divider purely for reference purposes. I left it in case
-// anyone ever wanted to use it for research.
-
-// cpuclk pclk_gen
-// (
-// 	.clk        (clk),
-// 	.reset      (reset),
-// 	.oclk       (oclk),
-// 	.resp0      (resp0),
-// 	.phi0       (phi0_ll)
-// );
 assign phi0_ll = 0;
 
 always_ff @(posedge clk) begin : phi0_gen
-	// Oscillator Clock
+
 	if (ce) begin
 		oclk_tog <= ~oclk_tog;
 	end
@@ -531,7 +495,6 @@ always_ff @(posedge clk) begin : phi0_gen
 		oclk.clock <= 0;
 	end
 
-	// CPU Clock
 	if (pclk_edge) begin
 		pclk_div <= (pclk_div == 5) ? 3'd0 : pclk_div + 1'd1;
 	end
@@ -555,7 +518,6 @@ end
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module horiz_gen
 (
 	input logic clk,
@@ -567,9 +529,9 @@ module horiz_gen
 	output logic CB,
 	output logic cntd,
 	output logic cnt,
-	output logic hblank, // Hblank signal with proper delays for hmove
-	output logic hgap, // Hblank signal without delay
-	output logic aud0, // Audio clocks need to be high twice per line
+	output logic hblank,
+	output logic hgap,
+	output logic aud0,
 	output logic aud1,
 	output logic shb,
 	output logic rhb,
@@ -578,16 +540,16 @@ module horiz_gen
 
 	logic [5:0] lfsr;
 	logic sec_latch, sec_latch_n;
-	
+
 	logic err, rhs, rcb, shs, lrhb, ehb;
 	logic aud1_l, aud2_l;
 	logic rhs_d;
 	logic hblank_n, hgap_n;
-	
+
 	assign aud0 = aud1_l;
 	assign aud1 = aud2_l;
 	wire eer = (ehb || rsynl || err);
-	
+
 	lfsr_6 timing_lfsr
 	(
 		.clk       (clk),
@@ -601,14 +563,14 @@ module horiz_gen
 	always_comb begin
 		{err, rhs, ehb, cnt, shs, lrhb, rhb, rcb} = '0;
 		case (lfsr)
-				6'b111111: err  = 1;    // Error
-				6'b010100: ehb  = 1;    // End (Set Hblank)
-				6'b110111: rhs  = 1;    // Reset HSync
-				6'b101100: cnt  = 1;    // Center
-				6'b001111: rcb  = 1;    // Reset Color Burst
-				6'b111100: shs  = 1;    // Set Hsync
-				6'b011100: rhb  = 1;    // Reset HBlank
-				6'b010111: lrhb = 1;    // Late Reset Hblank
+				6'b111111: err  = 1;
+				6'b010100: ehb  = 1;
+				6'b110111: rhs  = 1;
+				6'b101100: cnt  = 1;
+				6'b001111: rcb  = 1;
+				6'b111100: shs  = 1;
+				6'b011100: rhb  = 1;
+				6'b010111: lrhb = 1;
 				default: ;
 		endcase
 	end
@@ -715,7 +677,6 @@ module horiz_gen
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module hmove_gen
 (
 	input  logic       clk,
@@ -794,36 +755,32 @@ module hmove_gen
 
 endmodule
 
-
-/////////////////////////////////////////////////////////////////////////////////////////
-
 module playfield
 (
-	input         clk,     // Master clock
-	input         reset,   // System reset
-	input logic   clkp,    // Pixel Clock
-	input clock_t hclk,    // Horizontal clock phase 2
-	input         reflect, // Control playfield, 1 makes right half mirror image
-	input         cnt,     // center signal, high means right half
-	input         rhb,     // Reset HBlank signal
-	input         hblank,  // HBlank signal
-	input [19:0]  pfc,     // Combined playfield registers
-	output logic  pf       // Playfield graphics
+	input         clk,
+	input         reset,
+	input logic   clkp,
+	input clock_t hclk,
+	input         reflect,
+	input         cnt,
+	input         rhb,
+	input         hblank,
+	input [19:0]  pfc,
+	output logic  pf
 );
 
 	logic [4:0] pf_index, pf_next, pf_latch2, pf_latch1;
 	logic pf_1, pf_2, pf_3;
 
-	// Outputs in order PF0 4..7, PF1 7:0, PF2 0:7
 	logic [4:0] index_lut[20];
 
 	wire pf_reset = rhb || (cnt && ~reflect);
 	wire pf_reflect = (cnt && reflect);
 
 	assign index_lut = '{
-		5'd00, 5'd01, 5'd02, 5'd03,                             // PF0
-		5'd11, 5'd10, 5'd09, 5'd08, 5'd07, 5'd06, 5'd05, 5'd04, // PF1 in reverse
-		5'd12, 5'd13, 5'd14, 5'd15, 5'd16, 5'd17, 5'd18, 5'd19  // PF2
+		5'd00, 5'd01, 5'd02, 5'd03,
+		5'd11, 5'd10, 5'd09, 5'd08, 5'd07, 5'd06, 5'd05, 5'd04,
+		5'd12, 5'd13, 5'd14, 5'd15, 5'd16, 5'd17, 5'd18, 5'd19
 	};
 
 	logic [4:0] pf_latch;
@@ -870,7 +827,6 @@ module playfield
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module object_tick
 (
 	input clk,
@@ -879,10 +835,7 @@ module object_tick
 	input ec,
 	output tick
 );
-	// The reason for signal this centers around an analog delay of around 21ns which causes an
-	// extra clock edge to form if the hmove counter is glitched into remaining on during non-hblank
-	// clocks. This was discovered by Crispy and is available in this topic here:
-	// https://atariage.com/forums/topic/261596-cosmic-ark-star-field-revisited/
+
 	logic old_motck, old_ec;
 
 	wire edge_miss = (old_motck && ~motck) && (~old_ec && ec);
@@ -898,21 +851,19 @@ module object_tick
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
-
 module ball
 (
-	input       clk,         // Master Clock
-	input       reset,       // System Reset
-	input       clkp,        // Pixel Clock
-	input       motck,       // Motion Clock (real clock)
-	input       blec,        // Ball extra clock
-	input       blre,        // Ball reset signal
-	input       blen,        // Ball enable register
-	input       blen_o,      // Ball enable register (last)
-	input       blvd,        // Ball vdel
-	input [1:0] blsiz,       // Ball size register
-	output      bl           // Ball graphics output
+	input       clk,
+	input       reset,
+	input       clkp,
+	input       motck,
+	input       blec,
+	input       blre,
+	input       blen,
+	input       blen_o,
+	input       blvd,
+	input [1:0] blsiz,
+	output      bl
 );
 	clock_t objclk;
 
@@ -994,18 +945,17 @@ module ball
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module missile
 (
-	input       clk,        // Master Clock
-	input       reset,      // System Reset
-	input       clkp,       // Pixel clock
-	input       motck,      // Motion Clock (real clock)
-	input       mec,        // Missile extra clock
-	input       mre,        // Missile reset signal
-	input       men,        // Missile enable register
-	input [5:0] nusiz,      // Player/missile size
-	output      m           // Missile graphics output
+	input       clk,
+	input       reset,
+	input       clkp,
+	input       motck,
+	input       mec,
+	input       mre,
+	input       men,
+	input [5:0] nusiz,
+	output      m
 );
 
 	clock_t objclk;
@@ -1104,23 +1054,22 @@ module missile
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module player
 (
-	input       clk,        // Master Clock
-	input       reset,      // System Reset
-	input       clkp,       // Pixel Clock
-	input       motck,      // Motion Clock (real clock)
-	input       pec,        // Player extra clock
-	input       pre,        // Player reset signal
-	input       pvdel,      // Player Vertical Delay
-	input       m2pr,       // Missile To Player Reset Enabled
-	input       pref,       // player reflect
-	input [5:0] nusiz,      // Player size
-	input [7:0] grpnew,     // Player graphic (new)
-	input [7:0] grpold,     // Player graphic (delayed)
-	output      msrst,      // Missile to player reset signal
-	output      p           // Player graphics output
+	input       clk,
+	input       reset,
+	input       clkp,
+	input       motck,
+	input       pec,
+	input       pre,
+	input       pvdel,
+	input       m2pr,
+	input       pref,
+	input [5:0] nusiz,
+	input [7:0] grpnew,
+	input [7:0] grpold,
+	output      msrst,
+	output      p
 );
 	clock_t objclk;
 
@@ -1296,7 +1245,6 @@ module player
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module priority_encoder
 (
 	input           clk,
@@ -1312,24 +1260,9 @@ module priority_encoder
 	input           cntd,
 	input           pfp,
 	input           score,
-	output [3:0]    col_select // {bk, pf, p1, p0}
+	output [3:0]    col_select
 );
 
-	// Normal priority:
-	// 0: P0, M0
-	// 1: P1, M1
-	// 2: PF, BL
-	// 3: BK
-
-	// PFP:
-	// 0: PF, BL
-	// 1: P0, M0
-	// 2: P1, M1
-	// 3: BK
-
-	// When a one is written into the score control bit, the playfield is forced
-	// to take the color-lum of player 0 in the left half of the screen and player
-	// 1 in the right half of the screen.
 	logic rs_q;
 	logic rs_qn;
 
@@ -1363,7 +1296,6 @@ module priority_encoder
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module audio_channel
 (
 	input           clk,
@@ -1377,15 +1309,10 @@ module audio_channel
 	output [3:0]    audio
 );
 
-	// Audio is quite a lot of convoluted wide nors and odd shifting, so
-	// I just got sick of trying to simplify it and did it at gate level.
-
-	// Frequency divider area signals
 	logic [4:0] freq_div, freq_latch, freq_next;
 	logic freq_match, freq_div1, freq_div2;
 	logic T1, T2;
 
-	// Noise area signals
 	logic [4:0] noise, noise_latch, noise_next;
 	logic noise_wnor_1;
 	logic noise_wnor_2;
@@ -1394,7 +1321,6 @@ module audio_channel
 	logic noise0_latch_n;
 	logic nor2_latch;
 
-	// Pulse area signals
 	logic nor_a, nor_b, nor_c, nor_d, nor_e;
 	logic pulse_bit;
 	logic pulse_wnor_1;
@@ -1404,7 +1330,6 @@ module audio_channel
 	logic pulse3_q, pulse2_q, pulse1_q, pulse0_q;
 	logic pulse3_qn, pulse2_qn, pulse1_qn, pulse0_qn;
 
-	// Frequency divider area logic
 	assign freq_div = (aud1 ? (~freq_div2 ? 5'd0 : freq_next) : freq_latch);
 	assign freq_match = (freq == freq_div);
 
@@ -1414,7 +1339,6 @@ module audio_channel
 	assign T1 = ~|{~aud0, freq_div2};
 	assign T2 = ~|{~aud1, freq_div1};
 
-	// Noise area logic
 	assign nor1 = ~|{~audc[1:0], noise0_latch_n};
 	assign nor2 = ~|{nor1, ~audc[1], noise_wnor_1};
 	assign nor3 = ~|{audc[1:0], pulse_wnor_1};
@@ -1430,7 +1354,6 @@ module audio_channel
 	assign noise_wnor_1 = ~|{noise[4:2], ~noise[1], audc[0], ~audc[1]};
 	assign noise_wnor_2 = ~|{noise, nor3};
 
-	// Pulse area logic
 	assign rnor1 = ~|{pulse_wnor_2, pulse1_q};
 	assign rnor2 = ~|{pulse1_q, pulse0_q};
 	assign rnor3 = ~|{pulse_wnor_1, rnor2, rand1};
@@ -1522,24 +1445,23 @@ endmodule
 
 module video_stabilize
 (
-	input           clk,        // system clock
-	input           reset,      // System reset
-	input clock_t   oclk,       // Oscillator clock aka pixel clock or color clock
-	input [1:0]     mode,       // 00 = smart, 01 = fixed, 10 = none
-	input           vsync_in,   // Unmodified vsync signal
-	input           vblank_in,  // Umodified vblank signal
-	input           hsync_in,   // Unmodified hsync signal
-	input           hblank_in,  // Hblank signal with applicable system delays
+	input           clk,
+	input           reset,
+	input clock_t   oclk,
+	input [1:0]     mode,
+	input           vsync_in,
+	input           vblank_in,
+	input           hsync_in,
+	input           hblank_in,
 	output          vsync,
 	output          vblank,
 	output          auto_pal,
-	output          f1           // Indicates Odd field of interlaced video
+	output          f1
 );
-	localparam ntsc_vb_end = 9'd19; // 19
-	localparam pal_vb_end = 9'd23; // 23
-	localparam ntsc_vb_start = 9'd240 + ntsc_vb_end; //9'd262;//9'd243;
-	localparam pal_vb_start = 9'd288 + pal_vb_end; //9'd312;//9'd288;
-
+	localparam ntsc_vb_end = 9'd19;
+	localparam pal_vb_end = 9'd23;
+	localparam ntsc_vb_start = 9'd240 + ntsc_vb_end;
+	localparam pal_vb_start = 9'd288 + pal_vb_end;
 
 	logic [8:0] v_count, total_lines, vsync_line, vsync_end_line;
 	logic [7:0] h_count;
@@ -1549,30 +1471,24 @@ module video_stabilize
 	logic [7:0] dot_count = 0;
 	logic vsync_emulate;
 
-//	wire vblank_start = ~old_vblank && vblank_in;
-//	wire vblank_end   = old_vblank && ~vblank_in;
 	wire hblank_start = ~old_hblank && hblank_in;
 	wire hblank_end   = old_hblank && ~hblank_in;
 	wire vsync_start  = ~old_vsync && vsync_in;
-//	wire vsync_end    = old_vsync && ~vsync_in;
-//	wire hsync_start  = ~old_hsync && hsync_in;
-//	wire hsync_end    = old_hsync && ~hsync_in;
 
 	assign vblank = |mode ? vblank_in : vblank_en;
 	assign vsync = |mode ? vsync_in : vsync_en;
-	assign f1 = 1'b0; // |mode ? 1'b0 : midline_sync; // I could never make this work productively
+	assign f1 = 1'b0;
 	assign auto_pal = |mode ? 1'b0 : total_lines >= 290;
 
 	always_ff @(posedge clk) begin
 		old_hblank <= hblank_in;
 		old_vsync <= vsync_in;
-		if (&v_count) begin // Something is whack, emulate a signal
+		if (&v_count) begin
 			total_lines <= 9'd262;
 			vsync_override <= 1'd1;
 			vsync_emulate <= 1'd1;
 		end
 
-		// Base new lines on the horizontal LFSR reset
 		if (hblank_start) begin
 			v_count <= v_count + 1'd1;
 			if (v_count == (auto_pal ? pal_vb_end : ntsc_vb_end))
@@ -1603,28 +1519,11 @@ module video_stabilize
 
 		if (vsync_start) begin
 			vsync_emulate <= 0;
-			if (v_count != total_lines) begin
-				vsync_set <= 1;
-				if (total_lines - v_count < 3'd4) begin
-					vsync_override <= 1;
-					vsync_line <= v_count;
-				end else if (v_count - total_lines < 3'd4) begin
-					vsync_override <= 1;
-					vsync_line <= total_lines;
-				end else begin
-					vsync_override <= 0;
-				end
-			end
-			if (~vsync_override) begin
-				vsync_set <= 1;
-			end
-			v_count <= 0;
-			total_lines <= v_count;
+			vsync_set      <= 1;
+			vsync_override <= 0;
+			v_count        <= 0;
+			total_lines    <= v_count;
 
-			// if (dot_count > 15 && dot_count < 145) // Vsync outside of hblank can be considered invoking interlaced resolutions
-			// 	midline_sync <= 1;
-			// else
-			// 	midline_sync <= 0;
 		end
 
 		if (reset) begin
@@ -1643,10 +1542,9 @@ module video_stabilize
 
 endmodule
 
-/////////////////////////////////////////////////////////////////////////////////////////
 module TIA
 (
-	// Original Pins
+
 	input           clk,
 	output          phi0,
 	input           phi2,
@@ -1656,7 +1554,7 @@ module TIA
 	input  [5:0]    addr,
 	input  [7:0]    d_in,
 	output [7:0]    d_out,
-	input  [3:0]    i,     // On real hardware, these would be ADC pins. i0..3
+	input  [3:0]    i,
 	output [3:0]    i_out,
 	input           i4,
 	input           i5,
@@ -1669,15 +1567,15 @@ module TIA
 	input           cs0_n,
 	input           cs2_n,
 
-	// Abstractions
 	input           rst,
-	input           ce,     // Clock enable for CLK generation only, should be 2x normal TIA clk
+	input           ce,
 	output          video_ce,
 	output          vblank,
 	output          hblank,
 	output          hgap,
 	output          vsync,
 	output          hsync,
+	output          vblank_sw,
 	input           phi1_in,
 	input [7:0]     open_bus,
 	input           is_7800,
@@ -1688,24 +1586,24 @@ module TIA
 	output          is_pal,
 	output          is_f1,
 	input           stabilize,
-	output  [3:0]   paddle_read // Helper to let us autodetect paddles
+	output  [3:0]   paddle_read
 );
 
-logic [7:0] wreg[64]; // Write registers. Only 44 are used.
-logic [7:0] rreg[16]; // Read registers.
+logic [7:0] wreg[64];
+logic [7:0] rreg[16];
 
-logic cs; // Chip Select (cs1 and 3 were NC)
-logic wsync,rsync,resp0,resp1,resm0,resm1,resbl,hmove,hmclr,cxclr; // Strobe register signals
+logic cs;
+logic wsync,rsync,resp0,resp1,resm0,resm1,resbl,hmove,hmclr,cxclr;
 logic [3:0] color_select;
-logic p0, p1, m0, m1, bl, pf; // Current object active flags
-logic aclk0, aclk1, rhb, shb, cnt, cntd; // horizontal triggers
+logic p0, p1, m0, m1, bl, pf;
+logic aclk0, aclk1, rhb, shb, cnt, cntd;
 logic sec;
-logic hblank_o, vblank_o, vsync_o, hgap_o; // Original video timing signals
-logic msrst0, msrst1; // Missile/player reset signals
-logic p0ec, p1ec, m0ec, m1ec, blec; // HMOVE Extra clock signals
-logic rsynl, rsynd; // Reset synchronization signals
-logic motck; // Motion Clock
-logic clkp;  // Pixel Clock
+logic hblank_o, vblank_o, vsync_o, hgap_o;
+logic msrst0, msrst1;
+logic p0ec, p1ec, m0ec, m1ec, blec;
+logic rsynl, rsynd;
+logic motck;
+logic clkp;
 logic hblank_d;
 logic blank;
 logic phi2_delay;
@@ -1726,6 +1624,7 @@ assign BLK_n = blank;
 assign sync = ~(hsync || vsync);
 assign vsync_o = wreg[VSYNC][1];
 assign vblank_o = wreg[VBLANK][1];
+assign vblank_sw = vblank_o;
 assign d_out[5:0] = open_bus[5:0];
 assign cart_ce = oclk.edge_p2;
 assign motck = ~oclk.clock & ~hblank_d;
@@ -1791,7 +1690,6 @@ video_stabilize stab
 	.f1         (is_f1)
 );
 
-
 always_ff @(posedge clk) begin
 	old_hblank <= hblank_o;
 	old_vsync <= vsync_o;
@@ -1806,11 +1704,8 @@ always_ff @(posedge clk) begin
 		row <= 0;
 end
 
-// Reads and writes
-// NOTE: A realistic attempt at bus stuffing might need the registers to be set in a combinational
-// way, but otherwise using the clock enable signal keeps the timings valid.
 always_ff @(posedge clk) begin
-	phi2_delay <= pclk.level_p2; // Phi2 analog delay
+	phi2_delay <= pclk.level_p2;
 	i_out <= {4{~wreg[VBLANK][7]}};
 	if (pclk.edge_p2 || pclk.level_p2) begin
 		if (cs && RW_n) begin
@@ -1819,7 +1714,7 @@ always_ff @(posedge clk) begin
 			end else if (addr[3:0] == INPT5 && ~wreg[VBLANK][6]) begin
 				d_out[7:6] <= {i5, 1'b0};
 			end else if (~&addr[3:1]) begin
-				d_out[7:6] <= rreg[addr[3:0]][7:6]; // reads only use the lower 4 bits of addr
+				d_out[7:6] <= rreg[addr[3:0]][7:6];
 			end else
 				d_out[7:6] <= 2'd0;
 		end
@@ -1835,8 +1730,6 @@ always_ff @(posedge clk) begin
 		end
 	end
 
-	// FIXME: Due to analog delays in the chip, it appears these signals need roughly a
-	// 50ish nanosecond delay. This may need adaptation if you use a different speed clock.
 	{hmclr, cxclr} <= '0;
 	if (~RW_n && phi2_delay && cs) begin
 		case(addr)
@@ -1861,7 +1754,6 @@ always_ff @(posedge clk) begin
 	end
 end
 
-// "Strobe" registers have an immediate effect
 always_comb begin
 	{wsync,rsync,resp0,resp1,resm0,resm1,resbl,hmove} = '0;
 	if (~RW_n && pclk.level_p2 && cs) begin
@@ -1886,7 +1778,6 @@ always_comb begin
 	end
 end
 
-// Submodules
 clockgen clockgen
 (
 	.clk        (clk),
@@ -2070,10 +1961,9 @@ audio_channel audio1
 	.audio      (aud1)
 );
 
-// Select the correct output register
 always_ff @(posedge clk) if (oclk.edge_p1) begin
 	if ((hblank || vblank_o))
-		{col, lum} <= decomb ? wreg[COLUBK][7:1] : 7'h0; // Blank non-visible areas
+		{col, lum} <= decomb ? wreg[COLUBK][7:1] : 7'h0;
 	else begin
 		case (color_select)
 			4'b0001: {col, lum} <= wreg[COLUP0][7:1];
@@ -2085,7 +1975,6 @@ always_ff @(posedge clk) if (oclk.edge_p1) begin
 	end
 end
 
-// WSYNC register controls the RDY signal to the CPU. It is cleared at the start of hblank.
 wire rdy_q;
 assign rdy = ~rdy_q;
 sr_latch in_sr
@@ -2097,8 +1986,6 @@ sr_latch in_sr
 	.q          (rdy_q),
 	.q_n        ()
 );
-
-// Calculate the collisions
 
 always_ff @(posedge clk) begin : read_reg_block
 	if (cxclr) begin

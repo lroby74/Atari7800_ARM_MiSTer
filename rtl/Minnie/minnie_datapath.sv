@@ -102,35 +102,28 @@
 module minnie_datapath (
 	input  wire         clk,
 	input  wire         rst,
-	input  wire         step_en,        // one pulse per executed microcode state
+	input  wire         step_en,
 	input  wire   [3:0] step,
 	input  wire         latch_sample,
 
-	// The current voice's registers. vol[7] is ZER and vol[0] is unused;
-	// timbre[3] is unused. All three are accepted and ignored, per the sheet.
 	input  wire   [7:0] freq_l,
 	input  wire   [7:0] freq_h,
-	/* verilator lint_off UNUSEDSIGNAL */
+
 	input  wire   [7:0] vol,
 	input  wire   [7:0] timbre,
-	/* verilator lint_on UNUSEDSIGNAL */
+
 	input  wire   [7:0] idx_l,
 	input  wire   [7:0] idx_h,
 
-	// Index writeback.
 	output wire         idx_wr,
 	output wire         idx_hi,
 	output wire   [7:0] idx_data,
 
-	// Waveform logic.
 	output wire   [2:0] wfm,
 	input  wire   [7:0] wave_sample,
 
-	// Noise source.
 	input  wire  [14:0] poly,
 
-	// T, the sample accumulator. Readable and writable from the bus, to no
-	// useful effect - section 2.2.1.7 says so outright.
 	input  wire         t_wr,
 	input  wire   [7:0] t_din,
 	output wire   [9:0] t_value,
@@ -150,25 +143,17 @@ module minnie_datapath (
 	logic  [9:0] t_reg;
 	logic  [7:0] s_reg;
 	logic        carry;
-	/* verilator lint_off UNUSEDSIGNAL */
-	logic [15:0] noise_lat;      // only the high byte is read back, at NZE_HI
-	/* verilator lint_on UNUSEDSIGNAL */
+
+	logic [15:0] noise_lat;
 
 	assign wfm     = timbre[2:0];
 	assign t_value = t_reg;
 
-	// Volume field, section 2.2.1.3. Bit 7 is ZER and bit 0 is unused, so the
-	// six control bits sit in the middle: exponent in 6:4, mantissa in 3:1.
-	// ZER has no effect here - the specification only promises "unexpected
-	// things" without saying what, so the benign reading is the honest one.
 	wire [2:0] vexp = vol[6:4];
 	wire       m0   = vol[1];
 	wire       m1   = vol[2];
 	wire       m2   = vol[3];
 
-	// Noise magnitude, section 2.2.1.4.1: the low NZE bits of the poly, sign
-	// extended. Level 0 is exactly zero, and the step is one index count, which
-	// is the property the whole scheme turns on - see the note above.
 	wire  [3:0] nze      = timbre[7:4];
 	wire [15:0] poly_ext = {1'b0, poly};
 	wire        nsign    = poly_ext[(nze == 4'd0) ? 4'd0 : (nze - 4'd1)];
@@ -181,8 +166,6 @@ module minnie_datapath (
 			           : ((i[3:0] < nze) ? poly_ext[i] : nsign);
 	end
 
-	// The sample, sign extended into the 10 bit path, and the two shifter
-	// outputs: the fast feedback path's right-by-one, and the exponent shift.
 	wire  [9:0] s_ext   = {{2{s_reg[7]}}, s_reg};
 	wire  [9:0] acc_sr1 = 10'($signed(acc) >>> 1);
 	wire  [9:0] shifted = 10'($signed(acc) >>> vexp);
@@ -208,11 +191,7 @@ module minnie_datapath (
 		endcase
 	end
 
-	// Eleven bits so the byte carry falls out at bit 8. Plain unsigned addition
-	// produces the right two's complement bits either way.
-	/* verilator lint_off UNUSEDSIGNAL */
 	wire [10:0] sum11 = {xbus[9], xbus} + {ybus[9], ybus} + {10'd0, cin};
-	/* verilator lint_on UNUSEDSIGNAL */
 
 	wire is_idx_step = (step == OSC_LO) || (step == OSC_HI)
 	                || (step == NZE_LO) || (step == NZE_HI);
@@ -243,21 +222,16 @@ module minnie_datapath (
 					MUL0, MUL1, MUL2, MUL3:
 					        acc   <= sum11[9:0];
 					SCALE:  t_reg <= sum11[9:0];
-					default: ;   // OSC_HI and NZE_HI only write the index
+					default: ;
 				endcase
 			end
 
-			// One sample per tick. T wraps rather than saturating: three loud
-			// voices can reach +/-720 in a 10 bit accumulator and the real part
-			// had nothing to stop them.
 			if (latch_sample) begin
 				sample_out <= t_reg;
 				t_reg      <= 10'd0;
 				sample_en  <= 1'b1;
 			end
 
-			// A bus write to T. Lands on the opposite phase from the microcode,
-			// and is cleared again at the end of the tick regardless.
 			if (t_wr)
 				t_reg <= {t_reg[9:8], t_din};
 		end
@@ -266,3 +240,4 @@ module minnie_datapath (
 endmodule
 
 `default_nettype wire
+

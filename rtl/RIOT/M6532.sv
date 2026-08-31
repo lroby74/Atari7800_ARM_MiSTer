@@ -19,26 +19,24 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-
-
 module M6532
 (
-	input        clk,       // PHI 2
-	input        ce,        // Clock enable
-	input        res_n,     // reset
-	input  [6:0] addr,      // Address
-	input        RW_n,      // 1 = read, 0 = write
+	input        clk,
+	input        ce,
+	input        res_n,
+	input  [6:0] addr,
+	input        RW_n,
 	input  [7:0] d_in,
 	output logic [7:0] d_out,
-	input        RS_n,      // RAM select
+	input        RS_n,
 	output       IRQ_n,
-	input        CS1,       // Chip select 1, 1 = selected
-	input        CS2_n,     // Chip select 2, 0 = selected
-	input  [7:0] PA_in,     // Port ins and outs
-	output [7:0] PA_out,    // NOTE that port output must be fed back to input
-	input  [7:0] PB_in,     // if not altered by a peripheral, in order for
-	output [7:0] PB_out,    // the chip to read properly!
-	output       oe         // Output enabled (always 8 bits)
+	input        CS1,
+	input        CS2_n,
+	input  [7:0] PA_in,
+	output [7:0] PA_out,
+	input  [7:0] PB_in,
+	output [7:0] PB_out,
+	output       oe
 );
 
 parameter init_7800 = 0;
@@ -57,23 +55,22 @@ reg edge_detect;
 
 assign IRQ_n = ~((interrupt[7] & irq_en[1]) | (interrupt[6] & irq_en[0]));
 
-// These wires have a weak pull up, so any undriven wires will be high
 assign PA_out = out_a | ~dir_a;
 assign PB_out = out_b | ~dir_b;
 
 assign oe = (CS1 & ~CS2_n) && RW_n;
 always_ff @(posedge clk) begin
 	if ((CS1 & ~CS2_n) && RW_n) begin
-		if (~RS_n) begin // RAM selected
+		if (~RS_n) begin
 			d_out <= riot_ram[addr];
-		end else if (~addr[2]) begin // Address registers
+		end else if (~addr[2]) begin
 			case(addr[1:0])
-				2'b01: d_out <= dir_a; // DDRA
-				2'b11: d_out <= dir_b; // DDRB
-				2'b00: d_out <= (PA_in & PA_out); // Input A
-				2'b10: d_out <= (PB_in & PB_out); // Input B
+				2'b01: d_out <= dir_a;
+				2'b11: d_out <= dir_b;
+				2'b00: d_out <= (PA_in & PA_out);
+				2'b10: d_out <= (PB_in & PB_out);
 			endcase
-		end else if (addr[2])begin // Timer & Interrupts
+		end else if (addr[2])begin
 			if (~addr[0])
 				d_out <= timer[7:0];
 			else
@@ -92,7 +89,7 @@ wire p1024 = ~|prescaler[9:0] && incr == 2'd3;
 wire tick_inc = p1 || p8 || p64 || p1024;
 
 always_ff @(posedge clk) if (~res_n) begin
-	// Set to specific value on atari 7800 version, 0 on MOS version
+
 	if (init_7800)
 		riot_ram <= '{
 			8'hA9, 8'h00, 8'hAA, 8'h85, 8'h01, 8'h95, 8'h03, 8'hE8, 8'h00, 8'h2A, 8'hD0, 8'hF9, 8'h85, 8'h02, 8'hA9, 8'h04,
@@ -112,34 +109,34 @@ always_ff @(posedge clk) if (~res_n) begin
 	dir_a <= 8'h00;
 	dir_b <= 8'h00;
 	{interrupt, irq_en, edge_detect} <= '0;
-	incr <= 2'b10; // Increment resets to 64
-	timer <= 8'hFF;   // Timer resets to FF
+	incr <= 2'b10;
+	timer <= 8'hFF;
 	prescaler <= 0;
 	rollover <= 0;
 end else begin
-	
+
 	if (ce) begin : riot_stuff
 		reg old_pa7;
-	
+
 		prescaler <= prescaler + 1'd1;
-	
+
 		if (tick_inc)
 			timer <= timer - 8'd1;
 
 		if (CS1 & ~CS2_n) begin
-			if (~RS_n) begin // RAM selected
+			if (~RS_n) begin
 				if (~RW_n)
 					riot_ram[addr] <= d_in;
-			end else if (~addr[2]) begin // Address registers
+			end else if (~addr[2]) begin
 				if (~RW_n) begin
 					case(addr[1:0])
-						2'b01: dir_a <= d_in; // DDRA
-						2'b11: dir_b <= d_in; // DDRB
-						2'b00: out_a <= d_in; // Output A
-						2'b10: out_b <= d_in; // Output B
+						2'b01: dir_a <= d_in;
+						2'b11: dir_b <= d_in;
+						2'b00: out_a <= d_in;
+						2'b10: out_b <= d_in;
 					endcase
 				end
-			end else begin // Timer & Interrupts
+			end else begin
 				if (~RW_n) begin
 					if (addr[4])begin
 						prescaler <= 10'd0;
@@ -162,13 +159,12 @@ end else begin
 				end
 			end
 		end
-	
+
 		if (tick_inc && timer == 0) begin
 			interrupt[7] <= 1;
 			rollover <= 1;
 		end
-	
-		// Edge detection
+
 		old_pa7 <= pa7;
 		if ((edge_detect && ~old_pa7 && pa7) || (~edge_detect && old_pa7 && ~pa7))
 			interrupt[6] <= 1;

@@ -57,14 +57,13 @@
 // other, so they never share a clock. An access raises a flag that swallows the
 // next state advance. "Bus access arbitration is made fairly simple by virtue
 // of the fact that the processor always wins."
-
 `default_nettype none
 
 module minnie_seq (
 	input  wire        clk,
 	input  wire        reset,
-	input  wire        ph1_en,        // advances one microcode state
-	input  wire        bus_access,    // a processor read or write, on the bus phase
+	input  wire        ph1_en,
+	input  wire        bus_access,
 
 	output logic [1:0] voice,
 	output logic [3:0] step,
@@ -80,18 +79,12 @@ module minnie_seq (
 	logic busy;
 	logic stall;
 
-	// Reset gates the enables as well as the state. Without it the data path
-	// would keep re-executing whatever step it is parked on - held at step 0,
-	// that quietly accumulates the frequency constant into the index for the
-	// whole time CREG RESET is asserted.
 	wire  advance = ph1_en && !reset && !stall;
 	wire  wrap    = ph1_en && !reset && (tick == 6'd63);
 
 	assign step_en      = advance && busy;
 	assign latch_sample = wrap && !busy;
 
-	// The poly counter runs through idle states too - it is a free running
-	// shift register on the real part, not something the microcode gates.
 	assign poly_en      = advance;
 
 	always_ff @(posedge clk) begin
@@ -120,9 +113,6 @@ module minnie_seq (
 					end
 				end
 
-				// Start the next pass only once the previous one has finished.
-				// If it has not, this wrap passes without a latch and the held
-				// sample repeats.
 				if (tick == 6'd63 && !busy) begin
 					voice <= 2'd0;
 					step  <= 4'd0;
@@ -135,3 +125,4 @@ module minnie_seq (
 endmodule
 
 `default_nettype wire
+

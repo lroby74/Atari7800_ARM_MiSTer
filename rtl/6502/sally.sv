@@ -86,47 +86,38 @@
 // existing logic capture has no address, R/W or output-enable channel - so the
 // handover edge is fitted, not measured.
 //============================================================================
-
 module sally (
 	input  logic        clk_sys,
-	input  logic        phi1_en,    // start of phase 1 (this repo: pclk1)
-	input  logic        phi2_en,    // start of phase 2 (this repo: pclk0)
+	input  logic        phi1_en,
+	input  logic        phi2_en,
 
-	// ---- pins a stock 6502 also has --------------------------------------
-	input  logic        res_n,      // 40
-	input  logic        rdy,        // 2   MARIA pin 41 wire-ANDed with TIA pin 3.
-	                                //     A bare net on the board: no gate, no delay.
-	input  logic        irq_n,      // 4
-	input  logic        nmi_n,      // 6   from MARIA pin 2
-	input  logic        so_n,       // 38
-	input  logic  [7:0] data_in,    // 26-33
+	input  logic        res_n,
+	input  logic        rdy,
+
+	input  logic        irq_n,
+	input  logic        nmi_n,
+	input  logic        so_n,
+	input  logic  [7:0] data_in,
 	output logic  [7:0] data_out,
 	output logic        data_oe,
-	output logic [15:0] addr_out,   // 9-20, 22-25
-	output logic        rw_n,       // 34
-	output logic        sync,       // 7
-	output logic        phi1_out,   // 3
-	output logic        phi2_out,   // 39
+	output logic [15:0] addr_out,
+	output logic        rw_n,
+	output logic        sync,
+	output logic        phi1_out,
+	output logic        phi2_out,
 
-	// ---- the pin a stock 6502 does not have ------------------------------
-	input  logic        halt_n,     // 35  from MARIA pin 40, 4k7 pull-up R63
+	input  logic        halt_n,
 
-	// ---- what the halt circuit turns off ---------------------------------
-	output logic        addr_oe,    // 0 while halted: A0-A15 released
-	output logic        rw_oe,      // 0 while halted: R/W released
-	output logic        is_halted,  // for the system bus mux. Always ~addr_oe,
-	                                // so the two cannot disagree.
+	output logic        addr_oe,
+	output logic        rw_oe,
+	output logic        is_halted,
+
 	output logic        jammed,
 
-	// Debug only, passed straight through from the core. Nothing on the board
-	// has anything like these.
 	output logic  [7:0] dbg_a, dbg_x, dbg_y, dbg_s, dbg_p, dbg_ir,
 	output logic [15:0] dbg_pc
 );
 
-	// The 7474 pair. Two phase-2 samples in, two out; MARIA holds halt_n low
-	// for a whole number of CPU cycles, so the release is symmetric with the
-	// assertion.
 	logic halt_s, halt_bus;
 
 	always_ff @(posedge clk_sys) begin
@@ -141,36 +132,6 @@ module sally (
 
 	logic core_data_oe;
 
-	// HALT gives the core two cycles of grace and then stops it dead.
-	//
-	//   cycle     0   1   2   3  ...  m-1   m   m+1
-	//   halt_n    \___________________________/
-	//   bus_off           |===============|          halt_s & halt_bus
-	//   held              |===============|          the same window
-	//
-	// Cycles 0 and 1 are still ours, which is what the flip-flop pair is for:
-	// a write already under way reaches the bus. MARIA takes over on cycle 2,
-	// which is what DMA.sv means by "ultimately it takes 2 cpu
-	// cycles to start up", and hands it back on m. Measured on the whole-core
-	// model, MARIA drives the address bus over cycles 2..3 of a four cycle
-	// halt, so both margins are clear.
-	//
-	// RDY is not what stops the core here, and that is the one place this
-	// departs from the 800 board it copies. RDY holds a read and never a
-	// write, so a read-modify-write straddling the boundary runs both of its
-	// writes: Galaga lost the second write of an `INC $67` into a bus MARIA
-	// already owned and hung on the counter that never advanced. Two cycles
-	// of grace cannot cover it either - the netlist's ready latch takes its
-	// write term from the cycle itself, so a write also un-holds the cycle
-	// after it, and the exposure is three cycles deep.
-	//
-	// On the 800 ANTIC drove RDY and HALT as separate pins and could leave
-	// whatever margin it liked. MARIA has only HALT, so SALLY has to be the
-	// thing that guarantees the core is not on the bus, and the only guarantee
-	// that holds for a write is not running the cycle at all. The core is
-	// stopped by taking its phase enables away, which is what the T65 wrapper
-	// this replaces did, and it is why nothing here has to reason about what
-	// DL captured while MARIA had the bus.
 	logic bus_off;
 	assign bus_off   = halt_s & halt_bus;
 
@@ -183,10 +144,6 @@ module sally (
 	assign core_phi1_en = phi1_en & ~bus_off;
 	assign core_phi2_en = phi2_en & ~bus_off;
 
-	// Pin 39 is the system clock: it feeds MARIA pin 6 and everything after
-	// it, so it keeps running through a halt even though the core inside does
-	// not. Tracked from the ungated enables for that reason - the core's own
-	// phase outputs freeze with it.
 	logic phase2;
 	always_ff @(posedge clk_sys) begin
 		if      (phi1_en) phase2 <= 1'b0;
@@ -198,10 +155,10 @@ module sally (
 
 	mos6502 #(.BCD_EN(1'b1)) core (
 		.clk_sys  (clk_sys),
-		.phi1_en  (core_phi1_en), // stopped for the halt, see above
+		.phi1_en  (core_phi1_en),
 		.phi2_en  (core_phi2_en),
 		.res_n    (res_n),
-		.rdy      (rdy),          // MARIA's RDY pin only: WSYNC, not the halt
+		.rdy      (rdy),
 		.irq_n    (irq_n),
 		.nmi_n    (nmi_n),
 		.so_n     (so_n),
@@ -211,7 +168,7 @@ module sally (
 		.addr_out (addr_out),
 		.rw_n     (rw_n),
 		.sync     (sync),
-		.phi1_out (),                 // the pins keep running; see phase2 above
+		.phi1_out (),
 		.phi2_out (),
 		.jammed   (jammed),
 
@@ -222,3 +179,4 @@ module sally (
 	);
 
 endmodule
+

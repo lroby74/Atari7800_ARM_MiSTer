@@ -7,7 +7,6 @@
 // work. If not, see http://creativecommons.org/licenses/by-nc/4.0/.
 
 // Composite-like horizontal blending by Kitrinx
-
 module cofi (
 	input        clk,
 	input        pix_ce,
@@ -49,7 +48,7 @@ reg [7:0] green_last;
 reg [7:0] blue_last;
 
 always @(posedge clk) if (pix_ce) begin
-	
+
 	hblank_out <= hblank;
 	vblank_out <= vblank;
 	vs_out     <= vs;
@@ -66,3 +65,4 @@ always @(posedge clk) if (pix_ce) begin
 end
 
 endmodule
+

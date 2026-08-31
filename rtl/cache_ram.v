@@ -2,22 +2,19 @@
 
 // Parameterized synchronous block RAMs. Quartus uses Altera primitives;
 // other tools use the portable models below. Accesses take one clock.
-
 module cache_ram
 #(
 	parameter ADDR_WIDTH = 7,
 	parameter DATA_WIDTH = 32,
-	/* verilator lint_off UNUSEDPARAM */
+
 	parameter MEM_INIT_FILE = " ",
-	/* verilator lint_on UNUSEDPARAM */
+
 	parameter SIM_INIT_FILE = " ",
-	/* verilator lint_off UNUSEDPARAM */
+
 	parameter DEVICE_FAMILY = "Cyclone V",
-	// Caller supplies the whole hint so this module never builds a string.
-	// Set ENABLE_RUNTIME_MOD=YES,INSTANCE_NAME=<name> to expose the memory
-	// to the In-System Memory Content Editor.
+
 	parameter LPM_HINT = "ENABLE_RUNTIME_MOD=NO"
-	/* verilator lint_on UNUSEDPARAM */
+
 )
 (
 	input  wire                  clk_i,
@@ -57,9 +54,6 @@ module cache_ram
 
 	(* ramstyle = "M10K, no_rw_check" *) reg [DATA_WIDTH-1:0] mem_q [0:NUM_WORDS-1];
 
-	// The Quartus branch sets power_up_uninitialized = "FALSE", so a Cyclone V
-	// M10K comes up zeroed at configuration. The portable model zeroes to
-	// match the device rather than inventing X state.
 	integer init_i;
 
 	initial begin
@@ -93,10 +87,10 @@ module cache_ram_dp
 #(
 	parameter ADDR_WIDTH = 7,
 	parameter DATA_WIDTH = 32,
-	/* verilator lint_off UNUSEDPARAM */
+
 	parameter MEM_INIT_FILE = " ",
 	parameter DEVICE_FAMILY = "Cyclone V",
-	/* verilator lint_on UNUSEDPARAM */
+
 	parameter SIM_INIT_FILE = " "
 )
 (
@@ -158,9 +152,6 @@ module cache_ram_dp
 
 	(* ramstyle = "M10K, no_rw_check" *) reg [DATA_WIDTH-1:0] mem_q [0:NUM_WORDS-1];
 
-	// The Quartus branch sets power_up_uninitialized = "FALSE", so a Cyclone V
-	// M10K comes up zeroed at configuration. The portable model zeroes to
-	// match the device rather than inventing X state.
 	integer init_i;
 
 	initial begin
@@ -198,3 +189,4 @@ module cache_ram_dp
 `endif
 
 endmodule
+

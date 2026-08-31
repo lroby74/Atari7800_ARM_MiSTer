@@ -1,24 +1,3 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.1 Date: 14- 4-2017
-    Version: 1.0 Date: 27-10-2016
-    */
-
-
 module jt51_acc(
     input                   rst,
     input                   clk,
@@ -31,18 +10,18 @@ module jt51_acc(
     input           [1:0]   rl_I,
     input           [2:0]   con_I,
     input   signed  [13:0]  op_out,
-    input                   ne,     // noise enable
+    input                   ne,
     input   signed  [11:0]  noise_mix,
     output  signed  [15:0]  left,
     output  signed  [15:0]  right,
-    output  reg signed  [15:0]  xleft,  // exact outputs
+    output  reg signed  [15:0]  xleft,
     output  reg signed  [15:0]  xright
 );
 
 reg signed [13:0] op_val;
 
 always @(*) begin
-    if( ne && op31_acc ) // cambiar a OP 31
+    if( ne && op31_acc )
         op_val = { {2{noise_mix[11]}}, noise_mix };
     else
         op_val = op_out;
@@ -69,16 +48,12 @@ wire signed [16:0] total_ex = {total[15],total};
 reg sum_all;
 
 wire rst_sum = c2_enters;
-//wire rst_sum = c1_enters;
-//wire rst_sum = m1_enters;
-//wire rst_sum = m2_enters;
 
 function signed [15:0] lim16;
     input signed [16:0] din;
     lim16 = !din[16] &&  din[15] ? 16'h7fff :
            ( din[16] && !din[15] ? 16'h8000 : din[15:0] );
 endfunction
-
 
 always @(posedge clk) begin
     if( rst ) begin
@@ -130,7 +105,6 @@ jt51_sh #(.width(16),.stages(8)) u_acc(
     .drop   ( total     )
 );
 
-
 wire signed [9:0] left_man, right_man;
 wire [2:0] left_exp, right_exp;
 
@@ -173,3 +147,4 @@ always @(posedge clk)
 `endif
 
 endmodule
+

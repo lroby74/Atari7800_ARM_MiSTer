@@ -83,7 +83,6 @@
 // VSYNCS:  000000000 0
 // VBLANKR: 000010000 16
 // VBLANKS: 100000010 258
-
 module video_sync (
 	input logic        clk,
 	input logic        reset,
@@ -97,9 +96,9 @@ module video_sync (
 	output logic       hblank, vblank, vblank_ex,
 	output logic       border,
 	output logic       lrc,
-	output logic       prst,  // no clue, but it's there
-	output logic       vbe,   // vblank_end
-	output logic       hbs    // hblank start
+	output logic       prst,
+	output logic       vbe,
+	output logic       hbs
 );
 
 logic [8:0] row, col;
@@ -115,9 +114,9 @@ localparam BORDER_END = 93;
 localparam HBLANK_START = 440;
 localparam HBLANK_END = 68;
 localparam HSYNC_START = 0;
-localparam HSYNC_END = 34; // Typo in schematic
+localparam HSYNC_END = 34;
 localparam LINE_RESET_COUNT = 412;
-localparam RCPRST = 418; // RC PLA Reset
+localparam RCPRST = 418;
 localparam HCBURSTS = 38;
 
 localparam VSYNC_END = 3;
@@ -158,3 +157,4 @@ end else if (mclk1) begin
 end
 
 endmodule
+

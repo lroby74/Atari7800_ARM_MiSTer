@@ -1,35 +1,4 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-	Author: Jose Tejada Gomez. Twitter: @topapate
-	Version: 1.0
-	Date: March, 9th 2017
-	*/
-
 `timescale 1ns / 1ps
-
-/*
-
-	input sampling rate must be the same as clk frequency
-    interpolate input signal accordingly to get the
-    right sampling rate.
-	
-	Refer to sigmadelta.ods to see how the internal width (int_w)
-	was determined.
-
-*/
 
 module jt51_dac2 #(parameter width=16)
 (
@@ -61,3 +30,4 @@ always @(posedge clk)
 	end
 
 endmodule
+

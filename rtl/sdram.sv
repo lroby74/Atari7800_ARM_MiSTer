@@ -18,26 +18,23 @@
 // You should have received a copy of the GNU General Public License 
 // along with this program.  If not, see <http://www.gnu.org/licenses/>. 
 //
-
 module sdram
 (
 
-	// interface to the MT48LC16M16 chip
-	inout  reg [15:0] SDRAM_DQ,   // 16 bit bidirectional data bus
-	output reg [12:0] SDRAM_A,    // 13 bit multiplexed address bus
-	output reg        SDRAM_DQML, // byte mask
-	output reg        SDRAM_DQMH, // byte mask
-	output reg  [1:0] SDRAM_BA,   // two banks
-	output reg        SDRAM_nCS,  // a single chip select
-	output reg        SDRAM_nWE,  // write enable
-	output reg        SDRAM_nRAS, // row address select
-	output reg        SDRAM_nCAS, // columns address select
+	inout  reg [15:0] SDRAM_DQ,
+	output reg [12:0] SDRAM_A,
+	output reg        SDRAM_DQML,
+	output reg        SDRAM_DQMH,
+	output reg  [1:0] SDRAM_BA,
+	output reg        SDRAM_nCS,
+	output reg        SDRAM_nWE,
+	output reg        SDRAM_nRAS,
+	output reg        SDRAM_nCAS,
 	output            SDRAM_CLK,
 	output            SDRAM_CKE,
 
-	// cpu/chipset interface
-	input             init,			// init signal after FPGA config to initialize RAM
-	input             clk,			// sdram is accessed at up to 128MHz
+	input             init,
+	input             clk,
 
 	input      [24:0] ch0_addr,
 	input             ch0_rd,
@@ -51,21 +48,21 @@ assign SDRAM_nCS = 0;
 assign SDRAM_CKE = 1;
 assign {SDRAM_DQMH,SDRAM_DQML} = SDRAM_A[12:11];
 
-localparam RASCAS_DELAY   = 3'd2; // tRCD=20ns -> 2 cycles@85MHz
-localparam BURST_LENGTH   = 3'd0; // 0=1, 1=2, 2=4, 3=8, 7=full page
-localparam ACCESS_TYPE    = 1'd0; // 0=sequential, 1=interleaved
-localparam CAS_LATENCY    = 3'd2; // 2/3 allowed
-localparam OP_MODE        = 2'd0; // only 0 (standard operation) allowed
-localparam NO_WRITE_BURST = 1'd1; // 0=write burst enabled, 1=only single access write
+localparam RASCAS_DELAY   = 3'd2;
+localparam BURST_LENGTH   = 3'd0;
+localparam ACCESS_TYPE    = 1'd0;
+localparam CAS_LATENCY    = 3'd2;
+localparam OP_MODE        = 2'd0;
+localparam NO_WRITE_BURST = 1'd1;
 
-localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, BURST_LENGTH}; 
+localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, BURST_LENGTH};
 
-localparam STATE_IDLE  = 3'd0;             // state to check the requests
-localparam STATE_START = STATE_IDLE+1'd1;  // state in which a new command is started
-localparam STATE_NEXT  = STATE_START+1'd1; // state in which a new command is started
+localparam STATE_IDLE  = 3'd0;
+localparam STATE_START = STATE_IDLE+1'd1;
+localparam STATE_NEXT  = STATE_START+1'd1;
 localparam STATE_CONT  = STATE_START+RASCAS_DELAY;
 localparam STATE_READY = STATE_CONT+CAS_LATENCY+2'd1;
-localparam STATE_LAST  = STATE_READY;      // last state in cycle
+localparam STATE_LAST  = STATE_READY;
 
 reg  [2:0] state;
 reg [22:0] a;
@@ -79,10 +76,9 @@ wire       rd,wr;
 assign rd = ch0_rd;
 assign wr = ch0_wr;
 
-// access manager
 always @(posedge clk) begin
 	reg old_ref;
-	reg old_rd,old_wr;//,rd,wr;
+	reg old_rd,old_wr;
 	reg [24:1] last_a = '1;
 
 	old_rd <= old_rd & rd;
@@ -120,7 +116,6 @@ localparam MODE_RESET  = 2'b01;
 localparam MODE_LDM    = 2'b10;
 localparam MODE_PRE    = 2'b11;
 
-// initialization 
 reg [1:0] mode;
 reg [4:0] reset=5'h1f;
 always @(posedge clk) begin
@@ -151,7 +146,6 @@ localparam CMD_LOAD_MODE       = 3'b000;
 wire [1:0] dqm = {we & ~a[0], we & a[0]};
 reg [15:0] last_data;
 
-// SDRAM state machines
 always @(posedge clk) begin
 
 	if(state == STATE_START) SDRAM_BA <= (mode == MODE_NORMAL) ? bank : 2'b00;
@@ -163,7 +157,6 @@ always @(posedge clk) begin
 		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
 		{2'b0X, MODE_NORMAL, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
 
-		// init
 		{2'bXX,    MODE_LDM, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
 		{2'bXX,    MODE_PRE, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
 
@@ -174,7 +167,6 @@ always @(posedge clk) begin
 		{1'b1,  MODE_NORMAL, STATE_START}: SDRAM_A <= a[13:1];
 		{1'b1,  MODE_NORMAL, STATE_CONT }: SDRAM_A <= {dqm, 2'b10, a[22:14]};
 
-		// init
 		{1'bX,     MODE_LDM, STATE_START}: SDRAM_A <= MODE;
 		{1'bX,     MODE_PRE, STATE_START}: SDRAM_A <= 13'b0010000000000;
 
@@ -218,3 +210,4 @@ sdramclk_ddr
 );
 
 endmodule
+

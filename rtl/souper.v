@@ -56,14 +56,11 @@ module souper(
 	audCom,
 	audReq_n
 );
-	// System Clocks and Reset
-	//------------------------------
+
 	input			clk;
 	input			pclk1;
 	input			reset;
 
-	// Bits of a Bus
-	//------------------------------
 	input			halt_n;
 	input			rw;
 
@@ -81,50 +78,16 @@ module souper(
 	input			addr_1;
 	input			addr_0;
 
-	// Memory Selects
-	//------------------------------
 	output			romSel_n;
 	output			ramSel_n;
 	output			oe_n;
 	output			wr_n;
 
-	// Memory Banks (Connect to A7+ on attached ROM + RAM)
-	//------------------------------
 	output[11:0]	mapAddr_7p;
 
-	// Audio Expansion Interface
-	//------------------------------
 	output[7:0]		audCom;
 	output			audReq_n;
 
-
-//******************************************************************************
-// !!!!----                BUSSING AND ADDRESS DECODING                 ----!!!!
-//******************************************************************************
-// As if the 6502 and 6800 weren't similar enough, rw and phi2 must be used to
-// generate the usual oe_n and wr_n required for most memory.
-//
-// The 6502 will be READING while rw and phi2 are high, and WRITING if rw is
-// low and phi2 is high. Basically, use PHI2 as the replacement for E compared
-// to the 6800.
-//
-// Maria can take the bus whenever she pleases in order to fetch display lists
-// and graphic data. Fortunately the 6502 is actually a special Atari variant
-// (Sally) which can be single cycle halted + tri-stated with a special dance
-// and Maria ONLY reads.
-//
-// My assumption is that Maria has the bus TWO falling edges of PHI2 after
-// HALTn lowers. There shouldn't be any special requirements for completing
-// multi-cycle RMW instructions ala stopping execution through the use of the
-// RDYn pin.
-//                        |
-//                        V
-//          __    __    __    __        __
-// PHI2  __|  |__|  |__|  |__|  |__ ...   |___
-//       ______                             __
-// HALTn       |___________________ ... ___|
-//
-//------------------------------------------------------------------------------
 	reg				haltDelA_ir,
 					haltDelB_ir;
 	wire			marRead_i;
@@ -151,30 +114,6 @@ always@(posedge clk) begin
 	end
 end
 
-
-// On reset, the 48KB area from $4000 - $FFFF available to cartridges is
-// arranged as follows :
-//
-// $4000 - $7FFF : 16KB Extended RAM
-// $8000 - $BFFF : 16KB Selectable ROM Bank
-// $C000 - $FFFF : 16KB Fixed ROM Bank
-//
-// This is mostly compatible with the Atari SuperCart layout if RAM Banking
-// is disabled. However, once RAM Banking is enabled by setting Souper Mode
-// Bit 2 ($8003,2), the 16KB RAM region is repartitioned :
-//
-// $4000 - $5FFF : 8KB Fixed Extended RAM
-// $6000 - $6FFF : 4KB Selectable V-Extended RAM
-// $7000 - $7FFF : 4KB Selectable D-Extended RAM
-//
-// Enabling both SOUPER Mode and Character Remapping through Souper Mode
-// Bits 0 & 1 ($8003,1 & 0), will allow additional Maria fetch trapping :
-//
-// - Fetches from $0000-$7FFF are unchanged
-// - Fetches from $8000-$9FFF are routed to the Fixed ROM Bank
-// - Fetches from $A000-$BFFF are routed to the Character A/B Bank Select
-// - Fetches from $C000-$FFFF are routed to EXRAM
-//------------------------------------------------------------------------------
 	reg 			soupMode_ir;
 
 assign romSel_n = (marRead_i & soupMode_ir)
@@ -184,23 +123,6 @@ assign ramSel_n = (marRead_i & soupMode_ir)
 	? ~(addr_14)
 	: ~(~addr_15 & addr_14);
 
-
-//******************************************************************************
-// !!!!----               REGISTERS & EXPANSION INTERFACE               ----!!!!
-//******************************************************************************
-// A total of SIX mapping registers are available in the memory bastard, which
-// are accessed by writing to $8000 - $FFFF and repeat over an 8-Byte range.
-//
-// Software should access these registers only using $8000 - $8007 in case newer
-// variants of the mapper are developed with additional features.
-//
-// $0 = $8000 - $BFFF Bank Select, %xxxBBBBB
-// $1 = Character A Graphic Select, %BBBBBBBS
-// $2 = Character B Graphic Select, %BBBBBBBS
-// $3 = Souper Mode Enable, %xxxxxECS
-// $4 = $6000 - $6FFF EXRAM V-Bank Select, %xxxxxBBB
-// $5 = $7000 - $7FFF EXRAM D-Bank Select, %xxxxxBBB
-//------------------------------------------------------------------------------
 	reg				chrMode_ir;
 	reg				exMode_ir;
 
@@ -239,16 +161,6 @@ always@(posedge clk) begin
 	end
 end
 
-
-// There is a SEVENTH register which is a special case, it is used to alter the
-// state of the audio expansion communication port.
-//
-// Writing to $7 will alter the state of audCom and invert audReq_n to let the
-// audio processor know it has a command to read.
-//
-// Note that audReq_n is set up as an open drain output to simplify interfacing
-// with a 3.3V device if one is used as the audio expansion processor.
-//------------------------------------------------------------------------------
 	reg[7:0]		audData_ir;
 	reg				audReq_ir;
 
@@ -268,27 +180,11 @@ always@(posedge clk) begin
 end
 
 assign audCom = audData_ir;
-assign audReq_n = audReq_ir ? 1'bZ : 1'b0;
 
+assign audReq_n = audReq_ir;
 
-//******************************************************************************
-// !!!!----                      ROM & RAM MAPPING                      ----!!!!
-//******************************************************************************
 assign mapAddr_7p = ramSel_n
-	// ---- ROM SELECT (DEFAULT) ----
-	//------------------------------
-	// If it was Maria and in $8000 - $9FFF, reroute the access to our FIXED
-	// ROM BANK at $C000 - $FFFF which is the END of ROM (all address bits SET).
-	//
-	// If it was Maria and in $A000 - $BFFF, our address will be generated based
-	// upon our character bank select register and Maria's current read address
-	// in the format: %00000BBB BBBBHHHH SLLLLLLL. This effectively splits the
-	// region into two 2KB graphic data viewports which can be anywhere in ROM.
-	//
-	//
-	// If it was the 6502, $C000 - $FFFF are routed to the FIXED ROM BANK (last)
-	// while $8000 - $BFFF are routed to the currently selected 16KB bank.
-	//------------------------------
+
 	? ((marRead_i & chrMode_ir)
 		? (addr_13
 			? (addr_7
@@ -302,7 +198,6 @@ assign mapAddr_7p = ramSel_n
 				addr_11, addr_10, addr_9, addr_8,
 				addr_7})
 
-
 		: (addr_14
 			? {5'b11111, addr_13, addr_12,
 				addr_11, addr_10, addr_9, addr_8,
@@ -310,14 +205,7 @@ assign mapAddr_7p = ramSel_n
 			: {bankSel_ir, addr_13, addr_12,
 				addr_11, addr_10, addr_9, addr_8,
 				addr_7}))
-	// ---- RAM SELECT ----
-	//------------------------------
-	// If it was Maria OR the 6502, see whether they were looking at the UPPER
-	// or LOWER 8KB of the EXRAM region and if extended RAM banking is enabled.
-	//
-	// The LOWER 8KB is always fixed, but the two upper 4KB banks are
-	// selectable in EXMODE.
-	//------------------------------
+
 	: ((addr_13 & exMode_ir)
 		? (addr_12
 			? {4'd0, exSelD_ir,

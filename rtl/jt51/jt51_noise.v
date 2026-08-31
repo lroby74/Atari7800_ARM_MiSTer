@@ -1,53 +1,12 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.0
-    Date: 6-2-2021
-    */
-
-
-/*
-
-    NFRQ formula in the App:
-    Output rate is 55kHz but for NFRQ=1 the formula states that
-    the noise is 111kHz, twice the output rate per channel. The
-    reason must be the inversion of the LFSR data
-
-    That would suggest that the noise for LEFT and RIGHT are
-    different but the rest of the system suggest that LEFT and
-    RIGHT outputs are calculated at the same time, based on the
-    same OP output.
-
-    I have not been able to measure noise in actual chip because
-    operator 31 does not produce any output on my two chips. This
-    module is based on NukeYKT's work
-
-*/
-
 module jt51_noise(
     input             rst,
     input             clk,
-    input             cen,    // phi 1
+    input             cen,
     input      [ 4:0] cycles,
 
-    // Noise Frequency
     input      [ 4:0] nfrq,
 
-    // Noise envelope
-    input      [ 9:0] eg,     // serial signal in the original design
+    input      [ 9:0] eg,
     input             op31_no,
 
     output            out,
@@ -63,8 +22,6 @@ wire        mix_sgn;
 
 assign out = lfsr[0];
 
-// period counter
-
 always @(posedge clk, posedge rst) begin
     if( rst ) begin
         cnt  <= 5'b0;
@@ -76,8 +33,6 @@ always @(posedge clk, posedge rst) begin
         nfrq_met <= ~nfrq == cnt;
     end
 end
-
-// LFSR
 
 assign fb   = update ? ~((all1 & ~last_lfsr0) | (lfsr[2]^last_lfsr0))
                      : ~lfsr[0];
@@ -93,10 +48,7 @@ always @(posedge clk, posedge rst) begin
     end
 end
 
-
-// Noise mix
-
-assign mix_sgn = /*eg!=10'd0 ^*/ ~out;
+assign mix_sgn =  ~out;
 
 always @(posedge clk, posedge rst) begin
     if( rst ) begin
@@ -107,3 +59,4 @@ always @(posedge clk, posedge rst) begin
 end
 
 endmodule
+

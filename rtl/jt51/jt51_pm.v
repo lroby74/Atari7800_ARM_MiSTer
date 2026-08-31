@@ -1,24 +1,3 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-	
-	Author: Jose Tejada Gomez. Twitter: @topapate
-	Version: 1.0
-	Date: 27-10-2016
-	*/
-
-
 module jt51_pm(
 	input	[6:0]	kc_I,
     input	[5:0]	kf_I,
@@ -53,10 +32,10 @@ always @(*) begin : addition
         	if( lim>=10'd512 ) extra = 2'd3;
         	else if( lim>=10'd320 ) extra = 2'd2;
             else if( lim>=10'd128 ) extra = 2'd1;
-            else extra = 2'd0;            
+            else extra = 2'd0;
     endcase
     kcex0 = {1'b0,kcin,kf_I} + { 6'd0, extra, 6'd0 } + { 5'd0, mod_I };
-    kcex1 = kcex0[7:6]==2'd3 ? kcex0 + 14'd64 : kcex0;    
+    kcex1 = kcex0[7:6]==2'd3 ? kcex0 + 14'd64 : kcex0;
 end
 
 reg signed [9:0] slim;
@@ -78,7 +57,7 @@ always @(*) begin : subtraction
          4'd2,4'd6,4'd10,4'd14:
         	if( slim>=10'sd385 ) sextra = 2'd2;
             else if( slim>=10'sd193 ) sextra = 2'd1;
-            else sextra = 2'd0;            
+            else sextra = 2'd0;
     endcase
     skcex0 = {1'b0,kcin,kf_I} - { 6'd0, sextra, 6'd0 } - { 5'd0, mod_I };
     skcex1 = skcex0[7:6]==2'd3 ? skcex0 - 14'd64 : skcex0;
@@ -92,3 +71,4 @@ always @(*) begin : mux
 end
 
 endmodule
+

@@ -5,49 +5,63 @@
 
 // You should have received a copy of the license along with this
 // work. If not, see http://creativecommons.org/licenses/by-nc/4.0/.
-
 module cart2600
 (
-	// Physical Pins
-	output logic [7:0]  d_out, // Data bus
-	input    [7:0]  d_in,  // Data bus
-	input    [12:0] a_in,  // Address bus
 
-	// Helpers
-	input           clk,        // Master Clock
-	input           reset,      // System warm reset
-	input           ce,         // Original system clock enable (~3.579mhz) used to divide into crystals
-	input           phi1,       // CPU Phase 1 Signal (used for FE to catch data at the right moment)
-	output   [7:0]  oe,         // Output Enable mask
-	input    [7:0]  open_bus,   // Input open bus to use when not driving data bus (Obselete, use oe)
+	output logic [7:0]  d_out,
+	input    [7:0]  d_in,
+	input    [12:0] a_in,
 
-	// Autodetect info
-	input           sc,         // Superchip Enable
-	input    [4:0]  mapper,     // Bankswitching type (ie Mapper)
-	
-	// SDRAM ROM storage interface
-	input    [7:0]  rom_do,     // Incoming ROM data from the sdram
-	input   [18:0]  rom_size,   // Full rom size for address masking
-	output  [18:0]  rom_a,      // Outgoing absolute rom address for image.
-	output          rom_read,   // Initiate read from SDRAM
-	
+	input           clk,
+	input           reset,
+	input           ce,
+	input           phi1,
+	output   [7:0]  oe,
+	input    [7:0]  open_bus,
+
+	input           sc,
+	input    [4:0]  mapper,
+	input    [1:0]  cdf_family,
+	input           arm_enable,
+	input           rwn,
+	input           clk_vid,
+	input           cart_download,
+	input    [18:0] ioctl_addr,
+	input    [7:0]  ioctl_dout,
+	input           ioctl_wr,
+	input           vblank_sw,
+
+	input           e_sel,
+	input   [16:0]  e_addr,
+	input    [7:0]  e_data,
+	input           e_wren,
+	output   [7:0]  e_q,
+
+	input    [7:0]  rom_do,
+	input   [18:0]  rom_size,
+	output  [18:0]  rom_a,
+	output          rom_read,
+
 	output   [17:0] cartram_addr,
 	output          cartram_wr,
 	output          cartram_rd,
 	output   [7:0]  cartram_wrdata,
 	input    [7:0]  cartram_data,
 
-	// Tape Signals
-	output          tape_audio, // Tape audio output
-	input    [1:0]  tape_in,    // ADC tape input
-	input           fix_sc_cs   // Fix Supercharger Checksums menu option
+	output          tape_audio,
+	input    [1:0]  tape_in,
+	input           fix_sc_cs,
+
+	output          arm_cpu_stall,
+	output          ds_wait,
+	output          cmd_hold,
+	output          dpcp_arm_stall
 );
 	`define NUM_MAPPERS BANKEND
 
-	// Muxxing signals
 	logic [18:0] rom_addr[`NUM_MAPPERS];
 	logic [7:0] direct_do[`NUM_MAPPERS];
-	logic [15:0] flags_out[`NUM_MAPPERS]; // Flag bit 0 is direct_do in use, bit 1 is output enable used;
+	logic [15:0] flags_out[`NUM_MAPPERS];
 	logic [7:0]  out_en[`NUM_MAPPERS];
 	logic        ram_rw[`NUM_MAPPERS];
 	logic        ram_sel[`NUM_MAPPERS];
@@ -56,7 +70,6 @@ module cart2600
 	logic [7:0]  bg_data;
 	logic        ar_read;
 	logic [7:0]  cr_do;
-
 
 	logic [18:0] sel_rom_addr;
 	logic [7:0] sel_direct_do;
@@ -68,10 +81,12 @@ module cart2600
 	logic [18:0] rom_mask;
 
 	assign rom_mask = rom_size - 1'd1;
-	assign rom_read = mapper == BANKAR ? ar_read : ~address_change;
-	wire is_bad_game = mapper == BANKDPCP || mapper == BANKCDF;
+	assign rom_read = (mapper == BANKAR) ? ar_read :
+	                  ((mapper == BANKCDF) && arm_enable) ? arm_rom_read :
+	                  ~address_change;
+	wire is_bad_game = (~arm_enable & (mapper == BANKCDF))
+	                 | (~arm_enable & (mapper == BANKDPCP));
 
-	// Handle unsupportable ARM mappers :(
 	spram #(
 		.addr_width(11),
 		.mem_init_file("ooo.mif"),
@@ -86,16 +101,13 @@ module cart2600
 		.q          (bg_data)
 	);
 
-	// Flags:
-	// bit 0 - direct_do in use
-	// bit 1 - bitwise & direct_do and rom_do
 	assign sel_flags_out = flags_out[mapper];
 	assign sel_direct_do = direct_do[mapper];
 	assign sel_out_en = out_en[mapper];
 	assign sel_ram_rw = ram_rw[mapper];
 	assign sel_ram_sel = ram_sel[mapper];
 	assign sel_ram_a = ram_a[mapper];
-	assign rom_a = rom_addr[mapper] & ((mapper == BANKE7 || mapper == BANK3F) ? rom_mask : {19{1'b1}});
+	assign rom_a = rom_addr[mapper] & ((mapper == BANKE7 || mapper == BANK3F || mapper == BANKSB) ? rom_mask : {19{1'b1}});
 	assign oe = out_en[mapper];
 
 	always_comb begin
@@ -115,18 +127,12 @@ module cart2600
 		end
 	end
 
-	// Since atari added no clock signal to the cart slot, for most mappers this will be the
-	// primary way that they detected when to take action. The address changes typically
-	// occur just before or just after phi2 on a real system. On some 7800 systems, A12 is delayed
-	// in an atypical way causing this to trigger incorrectly for some games, however this
-	// design does not reproduce that issue.
 	wire address_change = old_ain != a_in;
 
 	always @(posedge clk) begin :reset_2600_cart
 		old_ain <= a_in;
 	end
 
-	// Bank CTY is compatible with F4 minus the ARM enhanced music
 	assign direct_do[BANKCTY]     = direct_do[BANKF4];
 	assign flags_out[BANKCTY]     = flags_out[BANKF4];
 	assign out_en[BANKCTY]        = out_en[BANKF4];
@@ -135,18 +141,146 @@ module cart2600
 	assign ram_a[BANKCTY]         = ram_a[BANKF4];
 	assign rom_addr[BANKCTY]      = rom_addr[BANKF4];
 
-	// CDF and DPC+ arm code won't run here
-	assign direct_do[BANKCDF]     = bg_data;
+	logic [7:0]  arm_dout;
+	logic        arm_busy;
+	logic        arm_done;
+	logic [18:0] arm_rom_a;
+	logic        arm_rom_read;
+	wire         subsys_ds_wait, subsys_cmd_hold;
+
+	wire        arm_rst_vid;
+	wire [31:0] arm_bus_addr, arm_bus_wdata, arm_bus_rdata_dpcp;
+	wire  [3:0] arm_bus_be;
+	wire        arm_bus_we, arm_bus_req_dpcp, arm_bus_ack_dpcp;
+	wire [31:0] arm_bus_addr_pre;
+	wire        arm_bus_req_pre;
+	wire        dpcp_callfn;
+	wire  [7:0] dpcp_callfn_val;
+
+	wire [12:0] dpcrom_addr_a;
+	wire [14:0] dpcrom_addr_b;
+	wire [31:0] dpcrom_q_a;
+	wire  [7:0] dpcrom_q_b;
+
+	atari2600_arm_subsystem u_arm_subsystem (
+		.clk           (clk),
+		.clk_vid       (clk_vid),
+		.reset         (reset | (~arm_enable)),
+		.arm_enable    (arm_enable),
+		.mapper        (mapper),
+		.cdf_family    (cdf_family),
+		.a_in          (a_in),
+		.d_in          (d_in),
+		.rwn           (rwn),
+		.cart_download (cart_download),
+		.ioctl_addr    (ioctl_addr),
+		.ioctl_dout    (ioctl_dout),
+		.ioctl_wr      (ioctl_wr),
+		.e_sel         (e_sel),
+		.e_addr        (e_addr),
+		.e_data        (e_data),
+		.e_wren        (e_wren),
+		.e_q           (e_q),
+		.rom_do        (rom_do),
+		.rom_size      (rom_size),
+		.rom_a         (arm_rom_a),
+		.rom_read      (arm_rom_read),
+		.d_out         (arm_dout),
+		.busy          (arm_busy),
+		.done          (arm_done),
+		.vblank_sw     (vblank_sw),
+		.ds_wait       (subsys_ds_wait),
+		.dpcrom_addr_a (dpcrom_addr_a),
+		.dpcrom_q_a    (dpcrom_q_a),
+		.dpcrom_addr_b (dpcrom_addr_b),
+		.dpcrom_q_b    (dpcrom_q_b),
+		.cmd_hold      (subsys_cmd_hold),
+		.audio_mix_out (),
+		.arm_rst_vid        (arm_rst_vid),
+		.arm_bus_addr       (arm_bus_addr),
+		.arm_bus_wdata      (arm_bus_wdata),
+		.arm_bus_be         (arm_bus_be),
+		.arm_bus_we         (arm_bus_we),
+		.arm_bus_req_dpcp   (arm_bus_req_dpcp),
+		.arm_bus_addr_pre   (arm_bus_addr_pre),
+		.arm_bus_req_pre    (arm_bus_req_pre),
+		.arm_bus_rdata_dpcp (arm_bus_rdata_dpcp),
+		.arm_bus_ack_dpcp   (arm_bus_ack_dpcp),
+		.dpcp_callfn        (dpcp_callfn),
+		.dpcp_callfn_val    (dpcp_callfn_val),
+		.dbg_pc        (),
+		.dbg_r0        (),
+		.dbg_pp        ()
+	);
+
+	wire  [7:0] dpcp_dout;
+	wire [14:0] dpcp_rom_a;
+	wire        dpcp_active = arm_enable && (mapper == BANKDPCP);
+
+	dpcplus_bridge u_dpcplus (
+		.clk           (clk),
+		.clk_vid       (clk_vid),
+		.rst           (reset | ~dpcp_active),
+		.m6502_addr    ({3'b000, a_in[12:0]}),
+		.m6502_din     (d_in),
+		.m6502_rwn     (rwn),
+		.m6502_dout    (dpcp_dout),
+		.rom_a         (dpcp_rom_a),
+		.callfn        (dpcp_callfn),
+		.callfn_val    (dpcp_callfn_val),
+		.rom_load_we   (cart_download & ioctl_wr & (ioctl_addr < 19'd32768)),
+		.rom_load_addr (ioctl_addr[14:0]),
+		.rom_load_data (ioctl_dout),
+		.rom_addr_a_o  (dpcrom_addr_a),
+		.rom_q_a_i     (dpcrom_q_a),
+		.rom_addr_b_o  (dpcrom_addr_b),
+		.rom_q_b_i     (dpcrom_q_b),
+		.rst_vid       (arm_rst_vid),
+		.bus_addr      (arm_bus_addr),
+		.bus_wdata     (arm_bus_wdata),
+		.bus_rdata     (arm_bus_rdata_dpcp),
+		.bus_be        (arm_bus_be),
+		.bus_we        (arm_bus_we),
+		.bus_req       (arm_bus_req_dpcp),
+		.bus_ack       (arm_bus_ack_dpcp),
+		.bus_addr_pre  (arm_bus_addr_pre),
+		.bus_req_pre   (arm_bus_req_pre),
+		.dbg_bank      (),
+		.dbg_ff        ()
+	);
+
+	assign arm_cpu_stall = arm_busy && (mapper == BANKCDF) && arm_enable;
+
+	reg [15:0] stall_wd;
+	reg        stall_giveup;
+	(* preserve *) reg dpcp_stall_r;
+	always_ff @(posedge clk) begin
+		if (reset || !arm_busy) begin
+			stall_wd     <= 16'd0;
+			stall_giveup <= 1'b0;
+		end else begin
+			if (stall_wd != 16'hFFFF) stall_wd <= stall_wd + 16'd1;
+			else                      stall_giveup <= 1'b1;
+		end
+		dpcp_stall_r <= !reset && arm_busy && !stall_giveup && arm_enable &&
+		                (mapper == BANKDPCP);
+	end
+	assign dpcp_arm_stall = dpcp_stall_r;
+
+	assign ds_wait  = subsys_ds_wait  && (mapper == BANKCDF) && arm_enable;
+	assign cmd_hold = subsys_cmd_hold && (mapper == BANKCDF) && arm_enable;
+
+	assign direct_do[BANKCDF]     = arm_enable ? arm_dout : bg_data;
 	assign flags_out[BANKCDF]     = 16'd1;
-	assign out_en[BANKCDF]        = 8'hFF;
+	assign out_en[BANKCDF]        = a_in[12] ? 8'hFF : 8'h00;
 	assign ram_sel[BANKCDF]       = 0;
 	assign ram_rw[BANKCDF]        = 1;
 	assign ram_a[BANKCDF]         = '0;
-	assign rom_addr[BANKCDF]      = '0;
+	assign rom_addr[BANKCDF]      = arm_enable ? arm_rom_a : '0;
 
-	assign direct_do[BANKDPCP]    = bg_data;
+	assign direct_do[BANKDPCP]    = arm_enable ? dpcp_dout : bg_data;
 	assign flags_out[BANKDPCP]    = 16'd1;
-	assign out_en[BANKDPCP]       = 8'hFF;
+	assign out_en[BANKDPCP]       = a_in[12] ? 8'hFF : 8'h00;
 	assign ram_sel[BANKDPCP]      = 0;
 	assign ram_rw[BANKDPCP]       = 1;
 	assign ram_a[BANKDPCP]        = '0;
@@ -157,14 +291,6 @@ module cart2600
 	assign cartram_rd = sel_ram_sel &&  sel_ram_rw && ~phi1 && ~address_change;
 	assign cartram_wrdata = d_in;
 	assign cr_do = cartram_data;
-
-	// Other?
-	// SV   -- Spectravideo Compumate (seems useless)
-	// 0840 -- Econobanking (can't find any games that use it)
-	// MC   -- Megacart (doesn't seem like it works on real hardware, also no games)
-	// X07  -- X07 Atariage (seems impossible, also cant find any games with it)
-	// 4A50 -- 4A50 (never found a game with this)
-	// FA2  -- FA2 (some kind of flash cart abstraction? Only one homebrew uses)
 
 	mapper_none mapper_none
 	(
@@ -302,6 +428,24 @@ module cart2600
 		.ram_a      (ram_a[BANKP2]),
 		.rom_a      (rom_addr[BANKP2]),
 		.ce         (ce)
+	);
+
+	mapper_FA2 mapper_FA2
+	(
+		.clk        (clk),
+		.reset      (reset),
+		.a_change   (address_change),
+		.sc         (sc),
+		.a_in       (a_in),
+		.d_in       (d_in),
+		.arm_hdr    (rom_size >= 19'd29696),
+		.d_out      (direct_do[BANKFA2]),
+		.flags_out  (flags_out[BANKFA2]),
+		.oe         (out_en[BANKFA2]),
+		.ram_sel    (ram_sel[BANKFA2]),
+		.ram_rw     (ram_rw[BANKFA2]),
+		.ram_a      (ram_a[BANKFA2]),
+		.rom_a      (rom_addr[BANKFA2])
 	);
 
 	mapper_FA mapper_FA
@@ -535,3 +679,4 @@ module cart2600
 	);
 
 endmodule
+

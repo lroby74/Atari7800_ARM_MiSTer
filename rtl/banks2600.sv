@@ -5,7 +5,6 @@
 
 // You should have received a copy of the license along with this
 // work. If not, see http://creativecommons.org/licenses/by-nc/4.0/.
-
 module mapper_none
 (
 	input           clk,
@@ -117,7 +116,7 @@ module mapper_F6
 
 endmodule
 
-module mapper_FE // SCABS
+module mapper_FE
 (
 	input           clk,
 	input           reset,
@@ -132,7 +131,7 @@ module mapper_FE // SCABS
 	output          ram_rw,
 	output  [10:0]  ram_a,
 	output  [18:0]  rom_a,
-	// Special
+
 	input           ce
 );
 	assign flags_out = 16'd0;
@@ -318,7 +317,7 @@ module mapper_P2
 	output          ram_rw,
 	output  [10:0]  ram_a,
 	output  [18:0]  rom_a,
-	// Special
+
 	input           ce
 );
 	logic direct_en, rom_en, and_do_en, music_en;
@@ -370,7 +369,7 @@ module mapper_P2
 			if (a_in[12]) begin
 				rand_val <= {rand_val[6:0], ~(rand_val[7] ^ rand_val[5] ^ rand_val[4] ^ rand_val[3])};
 				if (is_dpc) begin
-					if (dpc_rw) begin // read
+					if (dpc_rw) begin
 						if (index < 5 || (index >= 5 && music_modes[ain_minus_5])) begin
 							counters[index] <= counters[index] - 1'd1;
 						end
@@ -380,7 +379,7 @@ module mapper_P2
 						end else if (counters[index][7:0] == bottoms[index]) begin
 							flags[index] <= 8'h00;
 						end
-					end else begin // Write
+					end else begin
 						case (dpc_addr)
 							3'h0: begin
 								tops[index] <= d_in;
@@ -400,7 +399,7 @@ module mapper_P2
 							default: ;
 						endcase
 					end
-				end else begin // F8 banking if it's not a DPC address
+				end else begin
 					case (a_in)
 						13'h1FF8: bank <= 0;
 						13'h1FF9: bank <= 1;
@@ -412,7 +411,7 @@ module mapper_P2
 
 		if (ce) begin
 			music_div <= music_div + 1'd1;
-			if (music_div == 178) begin // Divide down to 15-20khz (180 == 19.88khz, 170 = 21khz)
+			if (music_div == 178) begin
 				music_div <= 10'd0;
 				music_clock <= music_clock + 1'd1;
 				if (music_clock % (tops[5] + 1'd1) > bottoms[5])
@@ -488,6 +487,56 @@ module mapper_FA
 
 endmodule
 
+module mapper_FA2
+(
+	input           clk,
+	input           reset,
+	input           a_change,
+	input           sc,
+	input   [12:0]  a_in,
+	input   [7:0]   d_in,
+	input           arm_hdr,
+	output  [7:0]   d_out,
+	output  [15:0]  flags_out,
+	output  [7:0]   oe,
+	output          ram_sel,
+	output          ram_rw,
+	output  [10:0]  ram_a,
+	output  [18:0]  rom_a
+);
+	wire flash_hs = (a_in == 13'h1FF4);
+
+	assign flags_out = flash_hs ? 16'd2 : 16'd0;
+	assign d_out     = 8'hBF;
+	assign oe = a_in[12] ? (~ram_rw && ram_sel ? 8'h00 : 8'hFF) : 8'h00;
+
+	assign ram_sel = (a_in[12:9] == 4'b1000);
+	assign ram_a   = {3'd0, a_in[7:0]};
+	assign ram_rw  = a_in[8];
+
+	logic [2:0] bank;
+
+	always @(posedge clk) begin
+		if (a_change) begin
+			case (a_in)
+				13'h1FF5: bank <= 3'd0;
+				13'h1FF6: bank <= 3'd1;
+				13'h1FF7: bank <= 3'd2;
+				13'h1FF8: bank <= 3'd3;
+				13'h1FF9: bank <= 3'd4;
+				13'h1FFA: bank <= 3'd5;
+				13'h1FFB: bank <= 3'd6;
+				default: ;
+			endcase
+		end
+		if (reset)
+			bank <= 0;
+	end
+
+	assign rom_a = {4'd0, bank, a_in[11:0]} + (arm_hdr ? 19'd1024 : 19'd0);
+
+endmodule
+
 module mapper_CV
 (
 	input           clk,
@@ -556,8 +605,8 @@ module mapper_UA
 	output          ram_rw,
 	output  [10:0]  ram_a,
 	output  [18:0]  rom_a,
-	// special
-	input           swapped // Swapped flag for the UASW mapper (Mickey)
+
+	input           swapped
 );
 	assign flags_out = 16'd0;
 	assign d_out = 8'd0;
@@ -603,7 +652,6 @@ module mapper_E7
 	logic [2:0] bank;
 	logic [1:0] ram_bank;
 
-	// FIXME: Add upper ram bank?
 	assign flags_out = 16'd0;
 	assign d_out = 8'd0;
 	assign oe = a_in[12] ? (~ram_rw && ram_sel ? 8'h00 : 8'hFF) : 8'h00;
@@ -688,7 +736,7 @@ module mapper_32
 	output          ram_rw,
 	output  [10:0]  ram_a,
 	output  [18:0]  rom_a,
-	// Special
+
 	input           cold_reset
 );
 	assign flags_out = 16'd0;
@@ -728,8 +776,8 @@ module mapper_AR
 	output          ram_rw,
 	output  [12:0]  ram_a,
 	output  [18:0]  rom_a,
-	// Special
-	input           ce, // 3.579 mhz
+
+	input           ce,
 	output          ar_read,
 	input   [7:0]   rom_do,
 	input   [1:0]   tape_in,
@@ -737,16 +785,12 @@ module mapper_AR
 	output  logic   audio_data,
 	input   [18:0]  rom_size
 );
-	// These numbers represent ONE HALF the cycles
-	// needed to achieve 340us for a 1 bit, and 227us for a 0 bit.
-	// Thus the numbers are about 170us and 113.5us respectively.
-	// Below we're calculating these numbers based on the same 3.579mhz
-	// clock as the DPC mapper above.
+
 	localparam CYCLES_PER_HALF_1        = 12'd608;
 	localparam CYCLES_PER_HALF_0        = 12'd405;
 	localparam PREAMBLE_CYCLES_PER_HALF = 12'd2384;
 	localparam COOLDOWN_PERIOD          = 16'hFFF;
-	
+
 	typedef enum logic[3:0] {
 		AR_START,
 		AR_FETCH,
@@ -794,7 +838,6 @@ module mapper_AR
 	logic [7:0] block_checksum;
 	logic [7:0] cs_array [0:23];
 
-	// Banks 0-2 are the ram chip selects, bank 3 is the boot rom
 	assign bank_lut[0] = '{2'd2, 2'd3};
 	assign bank_lut[1] = '{2'd0, 2'd3};
 	assign bank_lut[2] = '{2'd2, 2'd0};
@@ -811,7 +854,6 @@ module mapper_AR
 	wire [1:0] current_bank = ~a_in[11] ? bank_lut[bank][0] : bank_lut[bank][1];
 	wire adc_load = tape_in[1];
 
-	//wire eq_tone = state == AR_EQ_TONE;
 	assign flags_out = {15'd0, rom_bank || ~ram_rw || adata_select};
 	assign oe = a_in[12] ? 8'hFF : 8'h00;
 	assign ram_sel = a_in[12] && ~rom_bank;
@@ -821,7 +863,6 @@ module mapper_AR
 	assign ar_read = ce;
 	assign d_out = ~ram_rw ? we_byte : (adata_select ? {7'd0, audio_data} : bios_data);
 
-	// Supercharger
 	spram #(
 		.addr_width(11),
 		.mem_init_file("ar.mif"),
@@ -836,7 +877,7 @@ module mapper_AR
 		.cs         (1'b1),
 		.q          (bios_data)
 	);
-	
+
 	always_comb begin
 		case (state_next)
 			AR_HEADER: preload_a = {6'b100000, header_a};
@@ -861,7 +902,7 @@ module mapper_AR
 		if (adc_load)
 			audio_data <= tape_in[0];
 
-		if (ce) begin // Timed with a 3.579mhz clock (2600 oscillator freq)
+		if (ce) begin
 			fetch_byte <= 0;
 			if (playback) begin
 				audio_timer <= audio_timer + 1'd1;
@@ -928,7 +969,7 @@ module mapper_AR
 						cs_array[page_position] <= 8'h55 - block_byte_array[page_position] - (block_checksum + rom_do);
 						page_position <= page_position + 1'd1;
 						state_next <= (page_position == (page_count - 1'd1)) || (page_position == 23) ?
-							AR_PREAMBLE : AR_LOAD_BLOCK_BYTE;				
+							AR_PREAMBLE : AR_LOAD_BLOCK_BYTE;
 					end else begin
 						block_checksum <= block_checksum + rom_do;
 						state_next <= AR_CALC_CHECKSUMS;
@@ -1008,7 +1049,7 @@ module mapper_AR
 
 		if (a_change) begin
 			we_cycle <= {we_cycle[4:0], 1'b0};
-			
+
 			if (adata_select && ~playback) begin
 				if (|cooldown)
 					cooldown <= cooldown - 1'd1;
@@ -1016,10 +1057,10 @@ module mapper_AR
 					state <= AR_START;
 			end
 
-			if (a_in == 13'h1FF8) begin // Control Register
+			if (a_in == 13'h1FF8) begin
 				bank <= we_byte[4:2];
 				ram_we <= we_byte[1];
-				//rom_en <= we_byte[0];
+
 				we_cycle <= '0;
 			end
 
@@ -1038,7 +1079,7 @@ module mapper_AR
 			bank <= 0;
 			ram_we <= 0;
 			we_cycle <= '0;
-			//rom_en <= 1;
+
 		end
 	end
 
@@ -1064,8 +1105,7 @@ module mapper_WD
 	logic [2:0] bank_config;
 	logic [3:0] pending_switch;
 	logic [2:0] banks[4];
-	
-	// Four 1k bank slots with preset configurations as follows, indexed by hotspot addr
+
 	logic [2:0] bank_lut[8][4];
 	assign bank_lut[0] = '{3'd0, 3'd0, 3'd1, 3'd3};
 	assign bank_lut[1] = '{3'd0, 3'd1, 3'd2, 3'd3};
@@ -1075,10 +1115,10 @@ module mapper_WD
 	assign bank_lut[5] = '{3'd0, 3'd1, 3'd7, 3'd6};
 	assign bank_lut[6] = '{3'd2, 3'd3, 3'd4, 3'd5};
 	assign bank_lut[7] = '{3'd6, 3'd0, 3'd5, 3'd1};
-	
+
 	logic [2:0] bank_out;
 	assign bank_out = banks[a_in[11:10]];
-	
+
 	assign flags_out = 16'd0;
 	assign d_out = 8'd0;
 	assign oe = a_in[12] ? (~ram_rw && ram_sel ? 8'h00 : 8'hFF) : 8'h00;
@@ -1087,8 +1127,6 @@ module mapper_WD
 	assign ram_rw = ~a_in[6] || ~ram_sel;
 	assign rom_a = {6'd0, bank_out, a_in[9:0]};
 
-	// Bankswitching is delayed by at least three cpu clocks, and is triggered by
-	// address 0x30 through 0x3F. The bank is the bottom three bits.
 	always @(posedge clk) begin
 		if (a_change) begin
 			pending_switch <= {pending_switch[2:0], 1'b0};
@@ -1124,7 +1162,7 @@ module mapper_3E
 	output          ram_rw,
 	output  [17:0]  ram_a,
 	output  [18:0]  rom_a,
-	// special
+
 	input   [18:0]  rom_size
 );
 	assign flags_out = 16'd0;
@@ -1285,24 +1323,3 @@ module mapper_JANE
 
 endmodule
 
-	// AR File Format
-	// 3 2KB banks, each broken into 8 256 byte pages, for a total of 6KB.
-	// 1 Useless empty 2KB bank that has no purpose, as a placeholder for ROM space I guess.
-	// 256 bytes of header data that is organized as follows:
-	// Byte 0: start address of tape code, lower byte
-	// Byte 1: start address of tape code, upper byte
-	// Byte 2: initial control register value
-	// byte 3: total page count of game
-	// Byte 4: checksum of header
-	// Byte 5: index number for multi-load games (0 for first or single games)
-	// Byte 6: progress counter of load LSB
-	// Byte 7: progress counter of load MSB
-	// Byte 8-15: reserved space
-	// Byte 16-31: an array of 8 bit-packed values for the first 2kb, specifying the memory
-	//  destination of the data, it follows the format: XXXPPPBB, X = useless P = page address, B =
-	//  ram chip (bank) number.
-	// Byte 32-63: same as previous except for the second 2kb
-	// Byte 64-95: same as previous except for the third 2kb
-	// Byte 96-103: padding
-	// Byte 104-127: 24 bytes of checksums for each page of the 6kb of data.
-	// The rest is padding.

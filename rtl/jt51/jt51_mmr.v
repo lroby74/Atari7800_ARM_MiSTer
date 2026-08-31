@@ -1,51 +1,26 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.0
-    Date: 27-10-2016
-    */
-
-
 module jt51_mmr(
     input           rst,
     input           clk,
-    input           cen,        // P1
+    input           cen,
     input   [7:0]   din,
     input           write,
     input           a0,
     output  reg     busy,
 
-    // Original test bits
     output reg [7:0] test_mode,
 
-    // CT
     output  reg     ct1,
     output  reg     ct2,
 
-    // Noise
     output  reg         ne,
     output  reg [4:0]   nfrq,
 
-    // LFO
     output  reg [7:0]   lfo_freq,
     output  reg [1:0]   lfo_w,
     output  reg [6:0]   lfo_amd,
     output  reg [6:0]   lfo_pmd,
     output  reg         lfo_up,
-    // Timers
+
     output  reg [9:0]   value_A,
     output  reg [7:0]   value_B,
     output  reg         load_A,
@@ -57,11 +32,11 @@ module jt51_mmr(
     input               overflow_A,
 
     `ifdef TEST_SUPPORT
-    // Test
+
     output  reg     test_eg,
     output  reg     test_op0,
     `endif
-    // REG
+
     output  [1:0]   rl_I,
     output  [2:0]   fb_II,
     output  [2:0]   con_I,
@@ -86,14 +61,14 @@ module jt51_mmr(
     output          op31_no,
     output          op31_acc,
 
-    output          zero,       // high once per round
-    output          half,       // high twice per round
+    output          zero,
+    output          half,
     output  [4:0]   cycles,
     output          m1_enters,
     output          m2_enters,
     output          c1_enters,
     output          c2_enters,
-    // Operator
+
     output          use_prevprev1,
     output          use_internal_x,
     output          use_internal_y,
@@ -136,14 +111,14 @@ always @(posedge clk, posedge rst) begin : memory_mapped_registers
         `ifdef TEST_SUPPORT
         { test_eg, test_op0 } <= 2'd0;
         `endif
-        // noise
+
         nfrq <= 5'b0;
         ne   <= 1'b0;
-        // timers
+
         { value_A, value_B } <= 18'd0;
         { clr_flag_B, clr_flag_A,
         enable_irq_B, enable_irq_A, load_B, load_A } <= 6'd0;
-        // LFO
+
         { lfo_amd, lfo_pmd }    <= 14'h0;
         lfo_up          <= 1'b0;
         lfo_freq        <= 8'd0;
@@ -156,14 +131,14 @@ always @(posedge clk, posedge rst) begin : memory_mapped_registers
         mmr_dump <= 1'b0;
         `endif
     end else begin
-        // WRITE IN REGISTERS
+
         if( write ) begin
             if( !a0 )
                 selected_register <= din;
             else begin
                 din_copy <= din;
-                up_op    <= selected_register[4:3]; // operator to update
-                up_ch    <= selected_register[2:0]; // channel to update
+                up_op    <= selected_register[4:3];
+                up_ch    <= selected_register[2:0];
                 up_rl    <= 1'b0;
                 up_kc    <= 1'b0;
                 up_kf    <= 1'b0;
@@ -175,11 +150,11 @@ always @(posedge clk, posedge rst) begin : memory_mapped_registers
                 up_dt2   <= 1'b0;
                 up_d1l   <= 1'b0;
                 up_keyon <= 1'b0;
-                // Global registers
+
                 if( selected_register < 8'h20 ) begin
                     case( selected_register)
-                    // registros especiales
-                    REG_TEST:   test_mode <= din; // regardless of din
+
+                    REG_TEST:   test_mode <= din;
                     `ifdef TEST_SUPPORT
                     REG_TEST2:  { test_op0, test_eg } <= din[1:0];
                     `endif
@@ -215,7 +190,7 @@ always @(posedge clk, posedge rst) begin : memory_mapped_registers
                     default:;
                     endcase
                 end else
-                // channel registers
+
                 if( selected_register < 8'h40 ) begin
                     case( selected_register[4:3] )
                         2'h0: up_rl <= 1'b1;
@@ -225,7 +200,7 @@ always @(posedge clk, posedge rst) begin : memory_mapped_registers
                     endcase
                 end
                 else
-                // operator registers
+
                 begin
                     case( selected_register[7:5] )
                         3'h2: up_dt1    <= 1'b1;
@@ -239,7 +214,7 @@ always @(posedge clk, posedge rst) begin : memory_mapped_registers
                 end
             end
         end
-        else begin /* clear once-only bits */
+        else begin
             `ifdef SIMULATION
             mmr_dump <= 1'b0;
             `endif
@@ -250,7 +225,7 @@ always @(posedge clk, posedge rst) begin : memory_mapped_registers
     end
 end
 
-reg [4:0] busy_cnt; // busy lasts for 32 synth clock cycles
+reg [4:0] busy_cnt;
 reg       old_write;
 
 always @(posedge clk)
@@ -260,7 +235,7 @@ always @(posedge clk)
     end
     else begin
         old_write <= write;
-        if (!old_write && write && a0 ) begin // only set for data writes
+        if (!old_write && write && a0 ) begin
             busy <= 1'b1;
             busy_cnt <= 5'd0;
         end
@@ -272,8 +247,8 @@ always @(posedge clk)
 
 jt51_reg u_reg(
     .rst        ( rst       ),
-    .clk        ( clk       ),      // P1
-    .cen        ( cen       ),      // P1
+    .clk        ( clk       ),
+    .cen        ( cen       ),
     .din        ( din_copy  ),
 
     .up_rl      ( up_rl     ),
@@ -287,8 +262,8 @@ jt51_reg u_reg(
     .up_dt2     ( up_dt2    ),
     .up_d1l     ( up_d1l    ),
     .up_keyon   ( up_keyon  ),
-    .op         ( up_op     ),      // operator to update
-    .ch         ( up_ch     ),      // channel to update
+    .op         ( up_op     ),
+    .ch         ( up_ch     ),
 
     .csm        ( csm       ),
     .overflow_A ( overflow_A),
@@ -326,7 +301,7 @@ jt51_reg u_reg(
     .m2_enters  ( m2_enters ),
     .c1_enters  ( c1_enters ),
     .c2_enters  ( c2_enters ),
-    // Operator
+
     .use_prevprev1  ( use_prevprev1     ),
     .use_internal_x ( use_internal_x    ),
     .use_internal_y ( use_internal_y    ),
@@ -351,10 +326,9 @@ end
 `endif
 `endif
 
-
 `ifndef JT51_NODEBUG
 `ifdef SIMULATION
-/* verilator lint_off PINMISSING */
+
 wire [4:0] cnt_aux;
 
 sep32_cnt u_sep32_cnt (.clk(clk), .cen(cen), .zero(zero), .cnt(cnt_aux));
@@ -384,3 +358,4 @@ sep32 #(.width(4),.stg(1)) sep_d1l(.clk(clk),.cnt(cnt_aux),.cen(cen),.mixed( d1l
 `endif
 
 endmodule
+

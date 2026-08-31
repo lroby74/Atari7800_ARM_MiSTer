@@ -1,32 +1,3 @@
-
-
-/* This file is part of JT51.
-
- 
-    JT51 program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-    Based on hardware measurements and Sauraen VHDL version of OPN/OPN2,
-    which is based on die shots.
-
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.0
-    Date: 14-4-2017 
-
-*/
-
-// altera message_off 10030
-
 module jt51_exprom
 (
     input [4:0]         addr,
@@ -77,3 +48,4 @@ module jt51_exprom
     end
 
 endmodule
+

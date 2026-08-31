@@ -1,23 +1,3 @@
-/*  This file is part of jt51.
-
-    jt51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    jt51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with jt51.  If not, see <http://www.gnu.org/licenses/>.
-
-	Author: Jose Tejada Gomez. Twitter: @topapate
-	Version: 1.0
-	Date: March, 7th 2017
-	*/
-
 `timescale 1ns / 1ps
 
 module jt51_fir
@@ -38,10 +18,8 @@ module jt51_fir
 
 wire signed [data_width-1:0] mem_left, mem_right;
 
-// pointers
-reg [addr_width-1:0] addr_left, addr_right, 
+reg [addr_width-1:0] addr_left, addr_right,
 	forward, rev, in_pointer;
-
 
 reg update, last_sample;
 
@@ -63,7 +41,6 @@ jt51_fir_ram #(.data_width(data_width),.addr_width(addr_width)) chain_right(
 	.we		( update	),
 	.q		( mem_right)
 );
-	
 
 always @(posedge clk)
 	if( rst )
@@ -74,10 +51,9 @@ always @(posedge clk)
 	end
 
 parameter mac_width=(data_width+1)+coeff_width;
-parameter acc_width=output_width; // mac_width+3;
+parameter acc_width=output_width;
 reg	signed [acc_width-1:0] acc_left, acc_right;
 
-//integer acc,mac;
 wire [addr_width-1:0]  next = cnt+1'b1;
 
 reg signed [data_width:0] sum;
@@ -87,7 +63,7 @@ wire last_stage = cnt==(stages-1)/2;
 reg signed [data_width-1:0] buffer_left, buffer_right;
 
 always @(*) begin
-	if( state==LEFT) begin	
+	if( state==LEFT) begin
 		if( last_stage )
 			sum = buffer_left;
 		else
@@ -103,7 +79,6 @@ end
 
 wire signed [mac_width-1:0] mac = coeff*sum;
 wire signed [acc_width-1:0] mac_trim = mac[mac_width-1:mac_width-acc_width];
-//wire signed [acc_width-1:0] mac_trimx = (coeff*sum)>>>(mac_width-acc_width);
 
 wire [addr_width-1:0]
 	in_pointer_next = in_pointer - 1'b1,
@@ -137,31 +112,28 @@ always @(posedge clk)
 if( rst ) begin
 	sample_out <= 1'b0;
 	state	<= IDLE;
-	in_pointer <= 7'd0;	
-	//addr_left <= in_pointer;
-	//addr_right<= in_pointer;
+	in_pointer <= 7'd0;
+
 end else begin
 	case(state)
 		default: begin
 			if( update ) begin
 				state <= LEFT;
 				buffer_left <= left_in;
-				//addr_left <= rev;
+
 			end
 			cnt <= 6'd0;
 			acc_left <= {acc_width{1'b0}};
-			acc_right <= {acc_width{1'b0}};	
+			acc_right <= {acc_width{1'b0}};
 			rev <= in_pointer+stages-1'b1;
-			forward <= in_pointer;			
+			forward <= in_pointer;
 			sample_out <= 1'b0;
 		end
 		LEFT: begin
 				acc_left <= acc_left + mac_trim;
-				//addr_left <= forward_next;
-				
+
 				buffer_right <= mem_right;
-				//addr_right <= rev;
-				
+
 				forward<=forward_next;
 				state <= RIGHT;
 			end
@@ -171,19 +143,17 @@ end else begin
 				right_out <= acc_right + mac_trim;
 				sample_out <= 1'b1;
 				in_pointer  <= in_pointer_next;
-				//addr_left <= in_pointer_next;
-				//addr_right<= in_pointer_next;
+
 				state <= IDLE;
 			end else begin
 				acc_right <= acc_right + mac_trim;
-				//addr_right <= forward;
-				
+
 				buffer_left <= mem_left;
-				//addr_left <= rev_next;
+
 				cnt<=next;
 				rev<=rev-1'b1;
 				state <= LEFT;
 			end
 	endcase
 end
-endmodule // jt51_fir8
+endmodule

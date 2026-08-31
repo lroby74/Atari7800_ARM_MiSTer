@@ -69,27 +69,20 @@
 // complement are already a correct ramp, half a period out of phase. The
 // specification saying "unchanged" for the sawtooth while describing extra
 // logic for the triangle is indirect support for reading it this way.
-
 `default_nettype none
 
 module minnie_wave (
 	input  wire       clk,
 
-	// Voice side. idx_h is the high byte of the current voice's 16 bit index,
-	// so idx_h[7:2] is index[15:10], the 6 bits that pick one of 64 samples.
 	input  wire [2:0] wfm,
 	input  wire [7:0] idx_h,
 	output wire [7:0] sample,
 
-	// Processor side, through WAVEADDR/WAVEDATA. One clk pulse per write.
 	input  wire       cpu_wr,
 	input  wire [6:0] cpu_addr,
 	input  wire [7:0] cpu_data
 );
 
-	// A write steals the port for a single clk cycle. It can only land on the
-	// processor bus phase, and a sample is only latched on the opposite phase,
-	// so the two never contend for the same cycle.
 	wire [6:0] addr = cpu_wr ? cpu_addr : {wfm[0], idx_h[7:2]};
 
 	wire [7:0] stored;
@@ -110,7 +103,6 @@ module minnie_wave (
 		.cs      (1'b1)
 	);
 
-	// Free waveforms, derived from the index by the logic described above.
 	wire [7:0] saw = idx_h;
 	wire [7:0] sqr = {idx_h[7], 7'b0};
 
@@ -125,7 +117,7 @@ module minnie_wave (
 			3'd5:       selected = saw;
 			3'd6:       selected = sqr;
 			3'd7:       selected = tri_out;
-			default:    selected = 8'hFF;   // codes 2, 3 and 4: a blank ROM row
+			default:    selected = 8'hFF;
 		endcase
 	end
 
@@ -134,3 +126,4 @@ module minnie_wave (
 endmodule
 
 `default_nettype wire
+

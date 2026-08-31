@@ -1,46 +1,25 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.0
-    Date: 27-10-2016
-    */
-
-
 module jt51(
-    input               rst,    // reset
-    input               clk,    // main clock
-    input               cen,    // clock enable
-    input               cen_p1, // clock enable at half the speed
-    input               cs_n,   // chip select
-    input               wr_n,   // write
+    input               rst,
+    input               clk,
+    input               cen,
+    input               cen_p1,
+    input               cs_n,
+    input               wr_n,
     input               a0,
-    input       [7:0]   din, // data in
-    output      [7:0]   dout, // data out
-    // peripheral control
+    input       [7:0]   din,
+    output      [7:0]   dout,
+
     output              ct1,
     output              ct2,
-    output              irq_n,  // I do not synchronize this signal
-    // Low resolution output (same as real chip)
-    output              sample, // marks new output sample
+    output              irq_n,
+
+    output              sample,
     output  signed  [15:0] left,
     output  signed  [15:0] right,
-    // Full resolution output
+
     output  signed  [15:0] xleft,
     output  signed  [15:0] xright,
-    // unsigned outputs for sigma delta converters, full resolution
+
     output  [15:0] dacleft,
     output  [15:0] dacright
 );
@@ -48,7 +27,6 @@ module jt51(
 assign dacleft  = { ~xleft [15],  xleft[14:0] };
 assign dacright = { ~xright[15], xright[14:0] };
 
-// Timers
 wire [9:0]  value_A;
 wire [7:0]  value_B;
 wire        load_A, load_B;
@@ -76,8 +54,6 @@ jt51_timers u_timers(
     .overflow_A ( overflow_A    ),
     .irq_n      ( irq_n         )
 );
-
-/*verilator tracing_on*/
 
 `ifndef JT51_ONLYTIMERS
 `define YM_TIMER_CTRL 8'h14
@@ -124,7 +100,6 @@ jt51_lfo u_lfo(
     .cen        ( cen_p1    ),
     .cycles     ( cycles    ),
 
-    // Configuration
     .lfo_freq   ( lfo_freq  ),
     .lfo_w      ( lfo_w     ),
     .lfo_amd    ( amd       ),
@@ -132,7 +107,6 @@ jt51_lfo u_lfo(
     .lfo_up     ( lfo_up    ),
     .noise      ( noise     ),
 
-    // Test
     .test       ( test_mode ),
     .lfo_clk    (           ),
 
@@ -144,26 +118,23 @@ wire    [ 4:0]  keycode_III;
 wire    [ 9:0]  ph_X;
 wire            pg_rst_III;
 
-/*verilator tracing_on*/
-
-
 jt51_pg u_pg(
     .rst        ( rst       ),
-    .clk        ( clk       ),              // P1
+    .clk        ( clk       ),
     .cen        ( cen_p1    ),
     .zero       ( zero      ),
-    // Channel frequency
+
     .kc_I       ( kc_I      ),
     .kf_I       ( kf_I      ),
-    // Operator multiplying
+
     .mul_VI     ( mul_VI    ),
-    // Operator detuning
+
     .dt1_II     ( dt1_II    ),
     .dt2_I      ( dt2_I     ),
-    // phase modulation from LFO
+
     .pms_I      ( pms_I     ),
     .pm         ( pm        ),
-    // phase operation
+
     .pg_rst_III ( pg_rst_III    ),
     .keycode_III( keycode_III   ),
     .pg_phase_X ( ph_X          )
@@ -182,18 +153,18 @@ jt51_eg u_eg(
     .clk        ( clk       ),
     .cen        ( cen_p1    ),
     .zero       ( zero      ),
-    // envelope configuration
-    .keycode_III(keycode_III),  // used in stage III
+
+    .keycode_III(keycode_III),
     .arate_II   ( arate_II  ),
     .rate1_II   ( rate1_II  ),
     .rate2_II   ( rate2_II  ),
     .rrate_II   ( rrate_II  ),
     .d1l_I      ( d1l_I     ),
     .ks_III     ( ks_III    ),
-    // envelope operation
+
     .keyon_II   ( keyon_II  ),
     .pg_rst_III ( pg_rst_III),
-    // envelope number
+
     .tl_VII     ( tl_VII    ),
     .am         ( am        ),
     .ams_VII    ( ams_VII   ),
@@ -201,7 +172,6 @@ jt51_eg u_eg(
     .eg_XI      ( eg_XI )
 );
 
-/*verilator tracing_off*/
 wire signed [13:0] op_out;
 
 jt51_op u_op(
@@ -215,12 +185,12 @@ jt51_op u_op(
     .pg_phase_X     ( ph_X              ),
     .con_I          ( con_I             ),
     .fb_II          ( fb_II             ),
-    // volume
+
     .eg_atten_XI    ( eg_XI             ),
-    // modulation
+
     .m1_enters      ( m1_enters         ),
     .c1_enters      ( c1_enters         ),
-    // Operator
+
     .use_prevprev1  ( use_prevprev1     ),
     .use_internal_x ( use_internal_x    ),
     .use_internal_y ( use_internal_y    ),
@@ -230,7 +200,7 @@ jt51_op u_op(
     `ifdef SIMULATION
     .zero           ( zero              ),
     `endif
-    // output data
+
     .op_XVII        ( op_out            )
 );
 
@@ -281,8 +251,6 @@ wire    write = !cs_n && !wr_n;
 
 assign  dout = { busy, 5'h0, flag_B, flag_A };
 
-/*verilator tracing_on*/
-
 jt51_mmr u_mmr(
     .rst        ( rst           ),
     .clk        ( clk           ),
@@ -293,21 +261,19 @@ jt51_mmr u_mmr(
     .busy       ( busy          ),
 
     .test_mode  ( test_mode     ),
-    // CT
-    .ct1        ( ct1           ), // the LFO clock can be outputted via CT1 -not implemented-
+
+    .ct1        ( ct1           ),
     .ct2        ( ct2           ),
-    // LFO
+
     .lfo_freq   ( lfo_freq      ),
     .lfo_w      ( lfo_w         ),
     .lfo_amd    ( amd           ),
     .lfo_pmd    ( pmd           ),
     .lfo_up     ( lfo_up        ),
 
-    // Noise
     .ne         ( ne            ),
     .nfrq       ( nfrq          ),
 
-    // Timers
     .value_A    ( value_A       ),
     .value_B    ( value_B       ),
     .load_A     ( load_A        ),
@@ -318,11 +284,11 @@ jt51_mmr u_mmr(
     .clr_flag_B ( clr_flag_B    ),
     .overflow_A ( overflow_A    ),
     `ifdef TEST_SUPPORT
-    // Test
+
     .test_eg    ( test_eg       ),
     .test_op0   ( test_op0      ),
     `endif
-    // REG
+
     .rl_I       ( rl_I          ),
     .fb_II      ( fb_II         ),
     .con_I      ( con_I         ),
@@ -353,7 +319,7 @@ jt51_mmr u_mmr(
     .m2_enters  ( m2_enters     ),
     .c1_enters  ( c1_enters     ),
     .c2_enters  ( c2_enters     ),
-    // Operator
+
     .use_prevprev1  ( use_prevprev1     ),
     .use_internal_x ( use_internal_x    ),
     .use_internal_y ( use_internal_y    ),

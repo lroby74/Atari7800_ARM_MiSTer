@@ -64,50 +64,35 @@
 // AUD is analog on the real part. Both forms are exposed: the raw 10 bit
 // two's complement sample with its strobe, and a filtered unsigned value for
 // the framework mixer. The host picks.
-
 `default_nettype none
 
 module minnie (
 	input  wire        clk,
 
-	// The two phases of the target 1.79 MHz clock, one clk cycle each.
 	input  wire        ph1_en,
 	input  wire        ph2_en,
 	input  wire        reset,
 
-	// Bus pins. The region decode happens outside; a is A4..A0.
 	input  wire  [4:0] a,
 	input  wire        cs,
-	input  wire        rw,          // high = read
+	input  wire        rw,
 	input  wire  [7:0] d_in,
 	output wire  [7:0] d_out,
 	output wire        d_oe,
 
-	// Audio. The DAC side, and the mixed value for the framework.
 	output wire  [9:0] sample,
 	output wire        sample_en,
 	output wire [15:0] aud
 );
 
-	// Accesses land on the bus phase only. "The processor always wins": either
-	// direction stalls the microcode for one state.
 	wire bus_wr     = cs && !rw && ph2_en;
 	wire bus_rd     = cs &&  rw && ph2_en;
 	wire bus_access = bus_wr || bus_rd;
 
 	assign d_oe = cs && rw;
 
-	// CREG, section 2.2.2.1. Four bits are named on the sheet and four are
-	// blank and hand-circled "Rethink". RESET and POLYRST are implemented
-	// because they have an audible effect; TESTROM and FREERUN serve a wafer
-	// tester that does not exist here and are accepted but do nothing, as are
-	// the four GCC never named.
-	//
-	//   bit 7  6      5      4       3       2       1  0
-	//          -      RESET  POLYRST TESTROM FREERUN -  -
-	/* verilator lint_off UNUSEDSIGNAL */
-	wire [7:0] creg;             // bits 7, 6, 3, 2, 1, 0 are accepted and ignored
-	/* verilator lint_on UNUSEDSIGNAL */
+	wire [7:0] creg;
+
 	wire       creg_reset   = creg[5];
 	wire       creg_polyrst = creg[4];
 
@@ -116,9 +101,8 @@ module minnie (
 	wire  [1:0] voice;
 	wire  [3:0] step;
 	wire        step_en, latch_sample, poly_en;
-	/* verilator lint_off UNUSEDSIGNAL */
-	wire  [5:0] tick;            // sample-tick position, for testbenches only
-	/* verilator lint_on UNUSEDSIGNAL */
+
+	wire  [5:0] tick;
 
 	minnie_seq u_seq (
 		.clk,
@@ -227,3 +211,4 @@ module minnie (
 endmodule
 
 `default_nettype wire
+

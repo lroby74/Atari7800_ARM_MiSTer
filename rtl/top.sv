@@ -5,7 +5,6 @@
 
 // You should have received a copy of the license along with this
 // work. If not, see http://creativecommons.org/licenses/by-nc/4.0/.
-
 module Atari7800(
 	input  logic        clk_sys,
 	input  logic        reset,
@@ -33,6 +32,8 @@ module Atari7800(
 	input logic         show_overscan,
 	input logic         bypass_bios,
 	input logic         tia_mode,
+
+	input logic         cart_is_2600,
 	input logic         cpu_driver,
 
 	input  logic [7:0]  cart_xm,
@@ -53,7 +54,6 @@ module Atari7800(
 	output       [7:0]  cartram_wrdata,
 	input        [7:0]  cartram_data,
 
-	// Tia inputs
 	input  logic  [3:0] idump,
 	output logic  [3:0] i_out,
 	input  logic  [1:0] ilatch,
@@ -62,14 +62,12 @@ module Atari7800(
 	output logic        tia_pal,
 	output logic        tia_en,
 
-	// Riot inputs
 	input  logic  [7:0] PAin,
 	input  logic  [7:0] PBin,
 	output logic  [7:0] PAout,
 	output logic  [7:0] PBout,
 	output logic        PAread,
 
-	// 2600 Cart force flags based on detection
 	input logic [4:0]  force_bs,
 	input logic        sc,
 	input logic [7:0]  clearval,
@@ -89,12 +87,20 @@ module Atari7800(
 	input [7:0]        pal_data,
 	input              blend,
 	input              ar_control,
-	output [3:0]       i_read
-);
+	output [3:0]       i_read,
 
-	/////////////
-	// Signals //
-	/////////////
+	input  logic       clk_vid,
+	input  logic [1:0] cdf_family,
+	input  logic       arm_enable_i,
+	input  logic       cart_download,
+	input  logic [18:0] ioctl_addr,
+	input  logic [7:0] ioctl_dout,
+	input  logic       ioctl_wr,
+
+	output logic [7:0] bup_cmd,
+	output logic       bup_strobe,
+	output logic       bup_en
+);
 
 	logic           NMI_n;
 	logic           maria_RDY;
@@ -127,6 +133,7 @@ module Atari7800(
 	logic [7:0]     cart_2600_DB_out, cart_7800_DB_out;
 	logic           cpu_rwn;
 	logic [15:0]    covox_r, covox_l;
+	logic [15:0]    arm_audio;
 	logic [15:0]    last_address;
 	logic           pclk1, pclk0, pclk1_m, pclk0_m, pclk1_t, pclk0_t;
 	logic           pclk1_raw, pclk0_raw;
@@ -138,9 +145,22 @@ module Atari7800(
 	logic [7:0]     cartram_wrdata78, cartram_wrdata26;
 	logic           cartram_rd78, cartram_rd26;
 	logic [7:0]     cartram_data_bram;
+	logic           cartram_e_sel, cartram_e_wren;
+	logic [16:0]    cartram_e_addr;
+	logic  [7:0]    cartram_e_data;
+	wire   [7:0]    cartram_e_q;
 
-	assign RDY = maria_RDY && tia_RDY;
-	assign cpu_halt_n = (ctrl_writes == 2'd2) ? halt_n : 1'b1;
+	logic arm_cpu_stall, ds_wait, cmd_hold, dpcp_arm_stall, tia_vblank_sw;
+	logic cpu_freeze;
+	wire  arm_enable = arm_enable_i;
+
+	wire  pure_2600 = tia_en;
+
+	wire arm_wait = tia_en & (ds_wait | dpcp_arm_stall);
+	assign RDY = maria_RDY && tia_RDY && ~arm_wait;
+	assign cpu_halt_n = pure_2600 ? ~cmd_hold
+	                  : ((ctrl_writes == 2'd2) ? halt_n : 1'b1);
+	assign cpu_freeze = tia_en & cmd_hold;
 	assign cart_read = tia_en ? (pause ? ~|pause_clock : read_2600) : ((pause ? pause_clock[0] : (cart_read_flag & mclk1)));
 	assign cart_addr_out = tia_en ? cart_2600_addr_out : cart_7800_addr_out;
 	assign cart_DB_out = tia_en ? cart_2600_DB_out : cart_7800_DB_out;
@@ -148,7 +168,6 @@ module Atari7800(
 	assign cpu_ce = pclk1;
 	assign VBlank_orig = maria_en ? maria_vblank : tia_vblank;
 
-	// Track the open bus since FPGA's don't use bidirectional logic internally
 	always_ff @(posedge clk_sys) begin
 		pause_clock <= pause ? pause_clock + 1'd1 : {1'b0, mclk1};
 		open_bus <= (~RW ? write_DB : read_DB);
@@ -174,6 +193,11 @@ module Atari7800(
 		endcase
 		RW = cpu_released ? 1'b1 : cpu_rwn;
 
+		if (pure_2600) begin
+			AB = cpu_AB;
+			RW = cpu_rwn;
+		end
+
 		if (cpu_driver && tia_en) begin
 			pclk0_raw = pclk0_t;
 			pclk1_raw = pclk1_t;
@@ -185,7 +209,6 @@ module Atari7800(
 
 	assign dout = write_DB;
 
-	// Memory
 	logic [10:0] clear_addr;
 	always_ff @(posedge clk_sys) clear_addr <= clear_addr + loading;
 
@@ -209,7 +232,6 @@ module Atari7800(
 		.cs             (~pause)
 	);
 
-	// MARIA
 	logic maria_vblank, maria_vblank_ex, maria_vsync, maria_hblank, maria_hsync;
 	logic [3:0] maria_luma, maria_chroma;
 
@@ -259,7 +281,7 @@ module Atari7800(
 	TIA tia_inst
 	(
 		.clk            (clk_sys),
-		.ce             (tia_clk_x2),     // Clock enable for CLK generation only
+		.ce             (tia_clk_x2),
 		.is_7800        (~(cpu_driver && tia_en)),
 		.phi0           (pclk0_t),
 		.phi1           (pclk1_t),
@@ -269,7 +291,7 @@ module Atari7800(
 		.addr           ({(AB[5] & tia_en), AB[4:0]}),
 		.d_in           (write_DB),
 		.d_out          (tia_DB_out),
-		.i              (idump),     // On real hardware, these would be ADC pins. i0..3
+		.i              (idump),
 		.i_out          (i_out),
 		.i4             (ilatch[0]),
 		.i5             (ilatch[1]),
@@ -284,6 +306,7 @@ module Atari7800(
 		.rst            (reset),
 		.video_ce       (tia_pix_ce),
 		.vblank         (tia_vblank),
+		.vblank_sw      (tia_vblank_sw),
 		.hblank         (),
 		.hgap           (tia_hblank),
 		.vsync          (tia_vsync),
@@ -334,10 +357,6 @@ module Atari7800(
 		.blend          (blend)
 	);
 
-	// Audio output is non-linear, and this table represents the proper compressed values of
-	// audv0 + audv1.
-	// Generated based on the info here:
-	// https://atariage.com/forums/topic/271920-tia-sound-abnormalities/
 	logic [15:0] audio_lut[32];
 	assign audio_lut = '{
 		16'h0000, 16'h0842, 16'h0FFF, 16'h1745, 16'h1E1D, 16'h2492, 16'h2AAA, 16'h306E,
@@ -358,14 +377,8 @@ module Atari7800(
 	wire [15:0] tia_r = (use_stereo ? audio_lut_single[audv0] : audio_lut[aud_index]);
 	wire [15:0] tia_l = (use_stereo ? audio_lut_single[audv1] : audio_lut[aud_index]);
 
-	// There is an assumption made here that all audio sources will not be used simultaneously at
-	// max volume. If this is the case, there will be clipping. Tia audio cannot be greater than
-	// 0x7FFF on a single channel. When external audio sources are used, the overall volume will be
-	// halved to ensure no clipping. If in the future more than two external audio devices are used
-	// at once, eg covox + ym2151 + tia, then more reduction will be needed, but for the time being
-	// that seems unlikely.
-	wire [16:0] audio_mix_r = tia_r + pokey_audio_r + ym_audio_r + covox_r + minnie_audio + {tape_audio, 12'd0};
-	wire [16:0] audio_mix_l = tia_l + pokey_audio_l + ym_audio_l + covox_l + minnie_audio + {tape_audio, 12'd0};
+	wire [16:0] audio_mix_r = tia_r + pokey_audio_r + ym_audio_r + covox_r + minnie_audio + arm_audio + {tape_audio, 12'd0};
+	wire [16:0] audio_mix_l = tia_l + pokey_audio_l + ym_audio_l + covox_l + minnie_audio + arm_audio + {tape_audio, 12'd0};
 
 	assign AUDIO_R = ext_audio ? audio_mix_r[16:1] : audio_mix_r[15:0];
 	assign AUDIO_L = ext_audio ? audio_mix_l[16:1] : audio_mix_l[15:0];
@@ -374,7 +387,7 @@ module Atari7800(
 	M6532 #(.init_7800(1)) riot_inst
 	(
 		.clk          (clk_sys),
-		.ce           (pclk0),     // PHI 2 Clock enable
+		.ce           (pclk0),
 		.res_n        (~reset),
 		.addr         (AB[6:0]),
 		.RW_n         (RW),
@@ -406,9 +419,9 @@ module Atari7800(
 		.NMI_n        (NMI_n),
 		.RDY          (RDY),
 		.halt_n       (cpu_halt_n),
+		.freeze       (cpu_freeze),
 		.is_halted    (cpu_released)
 	);
-
 
 	ctrl_reg ctrl
 	(
@@ -432,7 +445,7 @@ module Atari7800(
 	assign cartram_addr = tia_en ? cartram_addr26 : cartram_addr78;
 	assign cartram_wrdata = tia_en ? cartram_wrdata26 : cartram_wrdata78;
 
-	logic [16:0] reset_addr; // Clear ram while reset is held
+	logic [16:0] reset_addr;
 	always @(posedge clk_sys) begin :reset_cart
 		logic old_reset;
 		old_reset <= reset;
@@ -440,17 +453,23 @@ module Atari7800(
 	end
 
 `ifndef EXTERNAL_CARTRAM
-	spram #(.addr_width(17), .mem_name("CART")) cart_ram
-	(
-		.clock   (clk_sys),
-		.address (reset ? reset_addr : cartram_addr),
-		.data    (reset ? 8'd0 : cartram_wrdata),
-		.wren    (reset ? 1'd1 : cartram_wr),
-		.q       (cartram_data_bram),
-		.cs      (~pause)
-	);
+
+	wire [4:0] mapper_eff   = |mapper ? mapper : force_bs;
+	wire       arm_owns_ram = cart_is_2600 && arm_enable &&
+	                          ((mapper_eff == BANKCDF) || (mapper_eff == BANKDPCP));
+	wire       cartram_cs   = ~pause & ~arm_owns_ram;
+
+	assign cartram_e_sel  = ~arm_owns_ram;
+	assign cartram_e_addr = reset ? reset_addr : cartram_addr[16:0];
+	assign cartram_e_data = reset ? 8'd0 : cartram_wrdata;
+	assign cartram_e_wren = cartram_cs & (reset ? 1'b1 : cartram_wr);
+	assign cartram_data_bram = cartram_cs ? cartram_e_q : 8'hFF;
 `else
 	assign cartram_data_bram = cartram_data;
+	assign cartram_e_sel  = 1'b0;
+	assign cartram_e_addr = 17'd0;
+	assign cartram_e_data = 8'd0;
+	assign cartram_e_wren = 1'b0;
 `endif
 
 	cart cart
@@ -487,12 +506,16 @@ module Atari7800(
 		.ym_audio_l     (ym_audio_l),
 		.rom_address    (cart_7800_addr_out),
 		.open_bus       (open_bus),
+		.arm_audio      (arm_audio),
 		.covox_r        (covox_r),
 		.covox_l        (covox_l),
 		.external_audio (ext_audio),
 		.ps2_key        (ps2_key),
 		.pokey_irq_en   (pokey_irq),
-		.minnie_en      (minnie_en)
+		.minnie_en      (minnie_en),
+		.bup_cmd        (bup_cmd),
+		.bup_strobe     (bup_strobe),
+		.bup_en         (bup_en)
 	);
 
 	assign cart_2600_addr_out[24:19] = '0;
@@ -509,6 +532,11 @@ module Atari7800(
 		.phi1           (pclk1),
 		.sc             (sc),
 		.mapper         (|mapper ? mapper : force_bs),
+		.e_sel          (cartram_e_sel),
+		.e_addr         (cartram_e_addr),
+		.e_data         (cartram_e_data),
+		.e_wren         (cartram_e_wren),
+		.e_q            (cartram_e_q),
 		.rom_do         (cart_out),
 		.rom_size       (cart_size),
 		.rom_a          (cart_2600_addr_out[18:0]),
@@ -522,12 +550,24 @@ module Atari7800(
 		.open_bus       (open_bus),
 		.tape_in        (tape_in),
 		.tape_audio     (tape_audio),
-		.fix_sc_cs      (fix_sc_cs)
+		.fix_sc_cs      (fix_sc_cs),
+		.cdf_family     (cdf_family),
+		.arm_enable     (arm_enable),
+		.rwn            (cpu_rwn),
+		.clk_vid        (clk_vid),
+		.cart_download  (cart_download),
+		.ioctl_addr     (ioctl_addr),
+		.ioctl_dout     (ioctl_dout),
+		.ioctl_wr       (ioctl_wr),
+		.vblank_sw      (tia_vblank_sw),
+		.arm_cpu_stall  (arm_cpu_stall),
+		.ds_wait        (ds_wait),
+		.cmd_hold       (cmd_hold),
+		.dpcp_arm_stall (dpcp_arm_stall)
 	);
 
 endmodule
 
-// INPUTCTRL register. Uses TIA CS.
 module ctrl_reg
 (
 	input  logic       clk,
@@ -575,30 +615,24 @@ endmodule
 
 module M6502C
 (
-	input         pclk1,     // start of phase 1, from MARIA or TIA
-	input         pclk0,     // start of phase 2, from MARIA or TIA
-	output        phi1_ce,   // pin 3:  the paired phase 1, for the rest of the system
-	output        phi2_ce,   // pin 39: the paired phase 2, for the rest of the system
-	input         clk_sys,   // MARIA Clock
-	input         reset,     // reset signal
-	input  [7:0]  DB_IN,     // data in,
-	input         IRQ_n,     // interrupt request
-	input         NMI_n,     // non-maskable interrupt request
-	input         RDY,       // Ready signal. Pauses CPU when RDY=0
-	input         halt_n,    // halt!
-	output [15:0] AB,        // address bus
-	output [7:0]  DB_OUT,    // data_out,
-	output        RD,        // read enable
-	output logic  is_halted  // This is used to indicate that sally has released the bus
+	input         pclk1,
+	input         pclk0,
+	output        phi1_ce,
+	output        phi2_ce,
+	input         clk_sys,
+	input         reset,
+	input  [7:0]  DB_IN,
+	input         IRQ_n,
+	input         NMI_n,
+	input         RDY,
+	input         halt_n,
+	input         freeze,
+	output [15:0] AB,
+	output [7:0]  DB_OUT,
+	output        RD,
+	output logic  is_halted
 );
 
-	// MARIA restarts its CPU clock divider when MARIA is enabled, and the
-	// restart can put out a phase 2 with no phase 1 before it - once at reset,
-	// once on the BIOS's first write to the lockout register. T65 only used
-	// pclk1 and never noticed. This core is two-phase and a doubled phase 2
-	// steps its T-state without a new address, so the stray pulse is dropped
-	// here rather than in MARIA, where the shape of that restart is load
-	// bearing for everything else.
 	logic in_phase2 = 1'b0;
 	wire  phi1_en = pclk1 & ~in_phase2;
 	wire  phi2_en = pclk0 &  in_phase2;
@@ -608,44 +642,40 @@ module M6502C
 		else if (phi2_en) in_phase2 <= 1'b0;
 	end
 
-	// SALLY pin 39 is the system clock - TIA, RIOT, both cartridge slots and
-	// MARIA pin 6 all run off it, not off MARIA's own divider. So the rest of
-	// the core gets the same paired phases the CPU acted on, and a dropped
-	// pulse is dropped for everyone. Taken before the halt gate: the pins keep
-	// running while MARIA owns the bus.
 	assign phi1_ce = phi1_en;
 	assign phi2_ce = phi2_en;
 
-	// SALLY carries the halt handshake itself: the two phase-2 flip-flops that
-	// release the bus, and the stall into the core's own RDY. The wrapper is
-	// now only a name and a pin adapter.
-	sally cpu (
-		.clk_sys  (clk_sys),
-		.phi1_en  (phi1_en),
-		.phi2_en  (phi2_en),
+	logic cpu_halt_n = 1;
+	logic rdy_delay = 1;
 
-		.res_n    (~reset),
-		.rdy      (RDY),
-		.irq_n    (IRQ_n),
-		.nmi_n    (NMI_n),
-		.so_n     (1'b1),
-		.data_in  (RD ? DB_IN : DB_OUT),
-		.data_out (DB_OUT),
-		.data_oe  (),
-		.addr_out (AB),
-		.rw_n     (RD),
-		.sync     (),
-		.phi1_out (),
-		.phi2_out (),
+	T65 cpu (
+		.mode (0),
+		.BCD_en(1),
 
-		.halt_n   (halt_n),
-		.addr_oe  (),
-		.rw_oe    (),
-		.is_halted(is_halted),
-		.jammed   (),
+		.Res_n(~reset),
+		.Clk(clk_sys),
+		.Enable(pclk1 && cpu_halt_n && ~freeze),
+		.Rdy(rdy_delay),
 
-		.dbg_a (), .dbg_x (), .dbg_y (), .dbg_s (),
-		.dbg_p (), .dbg_ir(), .dbg_pc()
+		.IRQ_n(IRQ_n),
+		.NMI_n(NMI_n),
+		.R_W_n(RD),
+		.A(AB),
+		.DI(RD ? DB_IN : DB_OUT),
+		.DO(DB_OUT)
 	);
 
+	always @(posedge clk_sys) begin
+		is_halted <= ~cpu_halt_n;
+		if (reset) begin
+			is_halted <= 0;
+			cpu_halt_n <= 1;
+			rdy_delay <= 1;
+		end else if (pclk1) begin
+			cpu_halt_n <= halt_n;
+			rdy_delay <= RDY;
+		end
+	end
+
 endmodule: M6502C
+

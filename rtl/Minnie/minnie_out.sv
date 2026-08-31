@@ -52,13 +52,12 @@
 //
 // Both filters are shift-and-accumulate, no multiplier and no divider, with
 // fractional bits carried so the truncation cannot stall them.
-
 `default_nettype none
 
 module minnie_out #(
-	parameter int DC_SHIFT  = 8,     // at 27.965 kHz -> ~17 Hz corner
-	parameter int LP_SHIFT  = 6,     // at 1.79 MHz   -> ~4.4 kHz corner
-	parameter int OUT_SHIFT = 5      // 10 bit sample -> +/-32768 of swing
+	parameter int DC_SHIFT  = 8,
+	parameter int LP_SHIFT  = 6,
+	parameter int OUT_SHIFT = 5
 ) (
 	input  wire               clk,
 	input  wire               reset,
@@ -69,19 +68,12 @@ module minnie_out #(
 	output wire        [15:0] aud
 );
 
-	// 17 bits: the bias is 32768, which a signed 16 bit value cannot hold.
 	localparam signed [16:0] OUT_BIAS = 17'sd32768;
 
-	// --- DC block, at the sample rate ------------------------------------
 	wire signed [17:0] samp_wide = {sample, {DC_SHIFT{1'b0}}};
 
 	logic signed [17:0] dc_acc;
 
-	// The difference needs one bit more than either operand: both span the full
-	// +/-131072, and at 18 bits the subtract wraps as soon as the sample sits
-	// more than half scale from its own running mean - a loud bass note does
-	// it. The wrapped increment then carries the wrong sign and walks dc_acc to
-	// the opposite rail, where it stays.
 	wire signed [18:0] dc_diff = 19'($signed(samp_wide)) - 19'($signed(dc_acc));
 
 	always_ff @(posedge clk) begin
@@ -91,20 +83,14 @@ module minnie_out #(
 			dc_acc <= dc_acc + 18'(dc_diff >>> DC_SHIFT);
 	end
 
-	// +/-512 minus +/-512, so eleven bits and no wider. Both operands are cast
-	// before the subtract: a concatenation is unsigned in Verilog, and one
-	// unsigned operand would make the whole expression unsigned and mangle
-	// every negative sample.
 	wire signed [10:0] sample_ext = 11'($signed(sample));
 	wire signed [10:0] dc_ext     = 11'($signed(dc_acc[17:DC_SHIFT]));
 	wire signed [10:0] hp         = sample_ext - dc_ext;
 
-	// --- One pole low pass, at the processor clock ------------------------
 	wire signed [16:0] hp_wide = {hp, {LP_SHIFT{1'b0}}};
 
 	logic signed [16:0] lp_acc;
 
-	// Widened for the same reason as the DC blocker above.
 	wire signed [17:0] lp_diff = 18'($signed(hp_wide)) - 18'($signed(lp_acc));
 
 	always_ff @(posedge clk) begin
@@ -116,16 +102,6 @@ module minnie_out #(
 
 	wire signed [10:0] lp_out = lp_acc[16:LP_SHIFT];
 
-	// --- Scale and bias ---------------------------------------------------
-	// hp is bounded at +/-1023, so this lands inside 32..65504: the whole of
-	// the unsigned mixer's range, without underflowing it.
-	//
-	// That is as loud as the part can be. top.sv sums into 17 bits and
-	// halves the result whenever an external audio source is present, and it
-	// assumes one such source at a time - TIA's 32767 plus this 65504 is
-	// 98271, inside the 131071 the sum holds. A cart running POKEY and Minnie
-	// together would break that assumption, which is the same assumption
-	// top.sv already documents for covox plus YM2151.
 	wire signed [16:0] scaled = 17'($signed(lp_out) <<< OUT_SHIFT);
 
 	assign aud = 16'(scaled + OUT_BIAS);
@@ -133,3 +109,4 @@ module minnie_out #(
 endmodule
 
 `default_nettype wire
+

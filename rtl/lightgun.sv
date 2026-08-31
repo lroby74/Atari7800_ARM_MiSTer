@@ -1,4 +1,3 @@
-
 module lightgun
 (
 	input        CLK,
@@ -114,7 +113,7 @@ always @(posedge CLK) begin
 				sensor_time <= 8'd0;
 			end
 		end
-		// Keep sensor active for a bit to mimic real light gun behavior.
+
 		else if(sensor_time > 64) SENSOR <= 1'b0;
 	end
 

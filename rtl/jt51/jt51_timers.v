@@ -1,25 +1,3 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.0
-    Date: 27-10-2016
-    */
-
-// altera message_off 10036
-
 module jt51_timers(
     input         rst,
     input         clk,
@@ -68,8 +46,8 @@ jt51_timer #(.CW(8),.FREE_EN(1)) timer_B(
 endmodule
 
 module jt51_timer #(parameter
-    CW      = 8, // counter bit width. This is the counter that can be loaded
-    FREE_EN = 0  // enables a 4-bit free enable count
+    CW      = 8,
+    FREE_EN = 0
 ) (
     input   rst,
     input   clk,
@@ -90,7 +68,7 @@ reg          free_ov;
 always@(posedge clk, posedge rst)
     if( rst )
         flag <= 1'b0;
-    else /*if(cen)*/ begin
+    else  begin
         if( clr_flag )
             flag <= 1'b0;
         else if(overflow) flag<=1'b1;
@@ -98,9 +76,9 @@ always@(posedge clk, posedge rst)
 
 always @(*) begin
     {free_ov, free_next} = { 1'b0, free_cnt} + 1'b1;
-    /* verilator lint_off WIDTH */
+
     {overflow, next }    = { 1'b0, cnt }     + (FREE_EN ? free_ov : 1'b1);
-    /* verilator lint_on WIDTH */
+
 end
 
 always @(posedge clk) if(cen && zero) begin : counter
@@ -113,7 +91,6 @@ always @(posedge clk) if(cen && zero) begin : counter
     else if( last_load ) cnt <= next;
 end
 
-// Free running counter
 always @(posedge clk) begin
     if( rst ) begin
         free_cnt <= 4'd0;
@@ -123,3 +100,4 @@ always @(posedge clk) begin
 end
 
 endmodule
+

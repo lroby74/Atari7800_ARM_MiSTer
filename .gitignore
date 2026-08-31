@@ -45,3 +45,10 @@ c5_pin_model_dump.txt
 
 # Host and credentials for the physical MiSTer - local only
 .agents/tools/mister/mister.local.conf
+
+# Work tree, notes, benches and game images - local only, never published
+ARM-nuovo/
+backup_speed/
+Giochi/
+7800GD-BupBoopConv-main/
+Thumbs.db

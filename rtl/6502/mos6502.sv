@@ -32,45 +32,35 @@
 // off clk_sys and is gated by one of the two enables, so clk_sys can be as
 // fast as the system needs without changing target timing.
 //============================================================================
-
 module mos6502
 	import mos6502_pkg::*;
 #(
-	// 1 = NMOS 6502 / Sally decimal mode.
-	// 0 = NES 2A03/2A07: ADC and SBC ignore the D flag. The flag itself still
-	//     sets, clears, pushes and pulls normally.
+
 	parameter bit BCD_EN = 1'b1
 ) (
-	// ---- fabric clocking. Not chip pins; these replace phi0 -------------
-	input  logic        clk_sys,   // free running, at least 2x the target phi0
-	input  logic        phi1_en,   // one clk_sys pulse at the start of phase 1
-	input  logic        phi2_en,   // one clk_sys pulse at the start of phase 2
 
-	// ---- inputs ----------------------------------------------------------
-	input  logic        res_n,     // 40  RES. Active low, level.
-	input  logic        rdy,       // 2   RDY. Low stalls a read cycle, never a write.
-	input  logic        irq_n,     // 4   IRQ. Active low, level, sampled in phase 2.
-	input  logic        nmi_n,     // 6   NMI. Active low, negative edge, phase 2.
-	input  logic        so_n,      // 38  S.O. Negative edge sets V. Tie high if unused.
+	input  logic        clk_sys,
+	input  logic        phi1_en,
+	input  logic        phi2_en,
 
-	// ---- the data bus is the only thing on this part that floats ---------
-	input  logic  [7:0] data_in,   // 26-33 read data, captured at the end of phase 2
-	output logic  [7:0] data_out,  // 26-33 write data, held for the whole write cycle
-	output logic        data_oe,   // 1 while driving. DBE is tied to phi2 on the die,
-	                               // so this is (write cycle && phase 2).
+	input  logic        res_n,
+	input  logic        rdy,
+	input  logic        irq_n,
+	input  logic        nmi_n,
+	input  logic        so_n,
 
-	// ---- always-driven outputs. A stock 6502 never floats these ----------
-	output logic [15:0] addr_out,  // 9-20, 22-25. A0-A15.
-	output logic        rw_n,      // 34  R/W. 1 = read.
-	output logic        sync,      // 7   SYNC. High for the whole opcode fetch cycle.
-	output logic        phi1_out,  // 3   phase 1 level, for support chips
-	output logic        phi2_out,  // 39  phase 2 level, for support chips
+	input  logic  [7:0] data_in,
+	output logic  [7:0] data_out,
+	output logic        data_oe,
 
-	// ---- not pins --------------------------------------------------------
-	output logic        jammed,    // a KIL opcode has locked the part up
+	output logic [15:0] addr_out,
+	output logic        rw_n,
+	output logic        sync,
+	output logic        phi1_out,
+	output logic        phi2_out,
 
-	// Architectural state, exported for verification and debug. Nothing inside
-	// the core reads these back, so they cost nothing when left unconnected.
+	output logic        jammed,
+
 	output logic  [7:0] dbg_a, dbg_x, dbg_y, dbg_s, dbg_p, dbg_ir,
 	output logic [15:0] dbg_pc,
 	output logic  [3:0] dbg_t,
@@ -106,8 +96,6 @@ module mos6502
 	assign dbg_s  = s;   assign dbg_p = p;  assign dbg_ir = ir;
 	assign dbg_pc = {pch, pcl};
 
-	// Which phase we are in, tracked from the enables so the level outputs
-	// look like the real pins to anything downstream.
 	logic phase2;
 	always_ff @(posedge clk_sys) begin
 		if      (phi1_en) phase2 <= 1'b0;
@@ -117,15 +105,6 @@ module mos6502
 	assign phi1_out = ~phase2;
 	assign phi2_out =  phase2;
 
-	// R/W, SYNC and the data drive describe the cycle whose address is on the
-	// pins, and they hold for the whole of it - the netlist shows all three
-	// identical in both phases of every cycle, read-to-write transitions
-	// included. The control word advances half a cycle earlier, at phi2_en,
-	// so the three are retimed here to land with the address, which ABL/ABH
-	// load at phi1_en for the same reason.
-	//
-	// RES needs no special case here: the control block already keeps SYNC down
-	// and the control word quiet while a reset is recognised.
 	logic wr_pin, sync_pin;
 	always_ff @(posedge clk_sys) begin
 		if (phi1_en) begin
@@ -137,8 +116,7 @@ module mos6502
 	assign rw_n = ~wr_pin;
 	assign sync = sync_pin;
 
-	// DBE is tied to phi2 on the die, so the part drives the data bus only in
-	// the second half of a write cycle.
 	assign data_oe = wr_pin & phase2;
 
 endmodule
+

@@ -1,3 +1,10 @@
+set_global_assignment -name QIP_FILE rtl/t65/t65.qip
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/thumb3_core.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/thumb3_decode.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/thumb3_alu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/thumb3_icache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/thumb3_shim.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/arm_copro.sv
 set_global_assignment -name QIP_FILE rtl/6502/mos6502.qip
 set_global_assignment -name QIP_FILE rtl/Pokey/Pokey.qip
 set_global_assignment -name QIP_FILE rtl/Minnie/Minnie.qip
@@ -25,3 +32,16 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/RIOT/M6532.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE Atari7800.sv
 set_global_assignment -name SDC_FILE Atari7800.sdc
+
+set_global_assignment -name SEARCH_PATH rtl
+
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cdc_sync2.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cdf_family_params.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cdf_m10k_memories.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/arm_cart_rom.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/harmony_m10k_tdp.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cdf_bridge.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/dpcplus_bridge.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/atari2600_arm_subsystem.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/bup_adpcm.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/bup_stream.sv

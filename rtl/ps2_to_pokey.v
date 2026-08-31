@@ -1,15 +1,3 @@
-// PS/2 scan codes to the Atari keyboard matrix that POKEY scans.
-// Replaces the VHDL ps2_to_atari800 and its ps2_keyboard receiver. Only the
-// direct path is kept: on MiSTer the HPS decodes PS/2 for us and hands over
-// ps2_key, so the raw PS/2 clock and data receiver had no user.
-//
-// INPUT packs one key event from ps2_key:
-//   [7:0] scan code   [12] extended prefix   [16] pressed (0 = released)
-//
-// POKEY drives KEYBOARD_SCAN and reads KEYBOARD_RESPONSE, which is active low:
-//   bit 0  the scanned key is down
-//   bit 1  the modifier for the current scan group is down
-
 module ps2_to_atari800
 (
 	input  wire        CLK,
@@ -31,8 +19,6 @@ module ps2_to_atari800
 	reg          control_pressed;
 	reg          break_pressed;
 
-	// The direct path reports an event every clock, so the selected bit simply
-	// tracks the current press state rather than pulsing once.
 	always @(*) begin
 		ps2_keys_next = ps2_keys_reg;
 		ps2_keys_next[{key_extended, key_value}] = ~key_up;
@@ -97,10 +83,10 @@ module ps2_to_atari800
 		atari_keyboard[33] = ps2_keys_reg[9'h029];
 		atari_keyboard[54] = ps2_keys_reg[9'h04e];
 		atari_keyboard[55] = ps2_keys_reg[9'h055];
-		atari_keyboard[15] = ps2_keys_reg[9'h05b] | ps2_keys_reg[9'h172];  // ] -> DN
-		atari_keyboard[14] = ps2_keys_reg[9'h054] | ps2_keys_reg[9'h175];  // [ -> UP
-		atari_keyboard[6]  = ps2_keys_reg[9'h052] | ps2_keys_reg[9'h16b];  // ' -> Left
-		atari_keyboard[7]  = ps2_keys_reg[9'h05d] | ps2_keys_reg[9'h174];  // \ -> Right
+		atari_keyboard[15] = ps2_keys_reg[9'h05b] | ps2_keys_reg[9'h172];
+		atari_keyboard[14] = ps2_keys_reg[9'h054] | ps2_keys_reg[9'h175];
+		atari_keyboard[6]  = ps2_keys_reg[9'h052] | ps2_keys_reg[9'h16b];
+		atari_keyboard[7]  = ps2_keys_reg[9'h05d] | ps2_keys_reg[9'h174];
 		atari_keyboard[38] = ps2_keys_reg[9'h04a];
 		atari_keyboard[2]  = ps2_keys_reg[9'h04c];
 		atari_keyboard[32] = ps2_keys_reg[9'h041];
@@ -114,7 +100,6 @@ module ps2_to_atari800
 		break_pressed      = ps2_keys_reg[9'h077] | ps2_keys_reg[9'h00e];
 	end
 
-	// POKEY walks the matrix with an inverted scan code.
 	always @(*) begin
 		KEYBOARD_RESPONSE = 2'b11;
 
@@ -130,3 +115,4 @@ module ps2_to_atari800
 	end
 
 endmodule
+

@@ -1,30 +1,7 @@
-/*  This file is part of JT51.
-
-    JT51 is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    JT51 is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with JT51.  If not, see <http://www.gnu.org/licenses/>.
-
-    Author: Jose Tejada Gomez. Twitter: @topapate
-    Version: 1.0
-    Date: 27-10-2016
-    */
-
-// altera message_off 10858
-// altera message_off 10036
-
 module jt51_reg(
     input           rst,
     input           clk,
-    input           cen,        // P1
+    input           cen,
     input   [7:0]   din,
 
     input           up_rl,
@@ -38,8 +15,8 @@ module jt51_reg(
     input           up_dt2,
     input           up_d1l,
     input           up_keyon,
-    input   [1:0]   op,     // operator to update
-    input   [2:0]   ch,     // channel to update
+    input   [1:0]   op,
+    input   [2:0]   ch,
 
     input           csm,
     input           overflow_A,
@@ -66,7 +43,6 @@ module jt51_reg(
     output  [3:0]   d1l_I,
     output          keyon_II,
 
-    // Pipeline order
     output  reg     zero,
     output  reg     half,
     output  [4:0]   cycles,
@@ -74,7 +50,7 @@ module jt51_reg(
     output  reg     m2_enters,
     output  reg     c1_enters,
     output  reg     c2_enters,
-    // Operator
+
     output          use_prevprev1,
     output          use_internal_x,
     output          use_internal_y,
@@ -121,7 +97,6 @@ wire [4:0] req_V   = req_IV  + 5'd1;
 wire [4:0] req_VI  = req_V   + 5'd1;
 wire [4:0] req_VII = req_VI  + 5'd1;
 
-
 wire    update_op_I     = cur == req_I;
 wire    update_op_II    = cur == req_II;
 wire    update_op_III   = cur == req_III;
@@ -139,18 +114,18 @@ wire up_kf_ch   = up_kf     & update_op_I;
 wire up_pms_ch  = up_pms    & update_op_I;
 wire up_ams_ch  = up_pms    & update_op_VII;
 
-wire up_dt1_op  = up_dt1    & update_op_II; // DT1, MUL
-wire up_mul_op  = up_dt1    & update_op_VI; // DT1, MUL
+wire up_dt1_op  = up_dt1    & update_op_II;
+wire up_mul_op  = up_dt1    & update_op_VI;
 wire up_tl_op   = up_tl     & update_op_VII;
-wire up_ks_op   = up_ks     & update_op_III; // KS, AR
-wire up_amsen_op= up_amsen  & update_op_VII; // AMS-EN, D1R
-wire up_dt2_op  = up_dt2    & update_op_I; // DT2, D2R
-wire up_d1l_op  = up_d1l    & update_op_I; // D1L, RR
+wire up_ks_op   = up_ks     & update_op_III;
+wire up_amsen_op= up_amsen  & update_op_VII;
+wire up_dt2_op  = up_dt2    & update_op_I;
+wire up_d1l_op  = up_d1l    & update_op_I;
 
-wire up_ar_op   = up_ks     & update_op_II; // KS, AR
-wire up_d1r_op  = up_amsen  & update_op_II; // AMS-EN, D1R
-wire up_d2r_op  = up_dt2    & update_op_II; // DT2, D2R
-wire up_rr_op   = up_d1l    & update_op_II; // D1L, RR
+wire up_ar_op   = up_ks     & update_op_II;
+wire up_d1r_op  = up_amsen  & update_op_II;
+wire up_d2r_op  = up_dt2    & update_op_II;
+wire up_rr_op   = up_d1l    & update_op_II;
 
 wire [4:0] next = cur+5'd1;
 
@@ -185,7 +160,6 @@ jt51_kon u_kon (
     .keyon_II  (keyon_II  )
 );
 
-
 jt51_mod u_mod(
     .alg_I      ( con_I ),
     .m1_enters  ( m1_enters ),
@@ -203,7 +177,7 @@ jt51_mod u_mod(
 jt51_csr_op u_csr_op(
     .rst            (  rst          ),
     .clk            (  clk          ),
-    .cen            (  cen          ),  // P1
+    .cen            (  cen          ),
     .din            (  din          ),
 
     .up_dt1_op      (  up_dt1_op    ),
@@ -254,10 +228,9 @@ jt51_csr_ch u_csr_ch(
     .pms        (  pms_I        )
 );
 
-//////////////////// Debug
 `ifndef JT51_NODEBUG
 `ifdef SIMULATION
-/* verilator lint_off PINMISSING */
+
 wire [4:0] cnt_aux;
 
 sep32_cnt u_sep32_cnt (.clk(clk), .cen(cen), .zero(zero), .cnt(cnt_aux));
@@ -276,14 +249,12 @@ sep32 #(.width(5),.stg(1)) sep_ar(
     .cnt    ( cnt_aux       )
     );
 
-
 sep32 #(.width(4),.stg(1)) sep_d1l(
     .clk    ( clk           ),
     .cen    ( cen           ),
     .mixed  ( d1l_I         ),
     .cnt    ( cnt_aux       )
     );
-
 
 sep32 #(.width(4),.stg(1)) sep_rr(
     .clk    ( clk           ),
@@ -299,8 +270,8 @@ sep32 #(.width(1),.stg(1)) sep_amsen(
     .cnt    ( cnt_aux       )
     );
 
-/* verilator lint_on PINMISSING */
 `endif
 `endif
 
 endmodule
+
