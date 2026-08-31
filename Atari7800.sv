@@ -996,8 +996,8 @@ always_comb begin
 	portb_type = |status[45:42] ? {4'd0, status[45:42] - 1'd1} : (auto_paddle ? 2'd3 : header_type1);
 
 	idump = tia_en
-		? {((portb_type <= 8'd1) ? ~joyb[5] : 1'b0), (portb_type <= 8'd1),
-		   ((porta_type <= 8'd1) ? ~joya[5] : 1'b0), (porta_type <= 8'd1)}
+		? {((portb_type <= 8'd1) ? ~joyb[5] : 1'b0), ((portb_type <= 8'd1) && !quadtari_en),
+		   ((porta_type <= 8'd1) ? ~joya[5] : 1'b0), ((porta_type <= 8'd1) && !quadtari_en)}
 		: {joyb[4], joyb[5], joya[4], joya[5]};
 	PAin[7:4] = {~joya[0], ~joya[1], ~joya[2], ~joya[3]};
 	PAin[3:0] = portb_savekey ? 4'b1111 : {~joyb[0], ~joyb[1], ~joyb[2], ~joyb[3]};
@@ -1038,7 +1038,7 @@ always_comb begin
 		9: begin idump[3:2] = {joyb[5], joyb[9]}; end
 		10: begin PAin[3:0] = robor; end
 		11: begin PAin[2] = ep_do; end
-		snac_type: if (~is_snac0) begin PAin[3:0] = snac_pa_in; ilatch[1] = snac_il_in; idump[3:2] = tia_en ? snac_id_in[1:0] : snac_fire_7800; end
+		snac_type: if (~is_snac0 && !qt_second) begin PAin[3:0] = snac_pa_in; ilatch[1] = snac_il_in; idump[3:2] = tia_en ? snac_id_in[1:0] : snac_fire_7800; end
 		gamepad_type: idump[3:2] = {~joyb[5], 1'b1};
 		default: ;
 	endcase

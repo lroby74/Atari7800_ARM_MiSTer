@@ -62,13 +62,27 @@ headered ROMs.
 ## Controllers
 
 Two-button controllers are found automatically by the games that support them —
-there is nothing to switch on, and it works with a USB pad, a SNAC adapter or
-the keyboard. If a game assigns something else to a port and you want a pad
-anyway, pick **Gamepad** at the bottom of the Port 1 or Port 2 list in the
-Peripherals menu.
+there is nothing to switch on. Tested with a USB pad, a DB9 controller through a
+USB adapter, a SNAC adapter and the plain keyboard: all four give you both
+buttons, with Port 1 on either **Auto** or **Joystick**.
 
-**QuadTari** is supported and starts switched off, so it cannot disturb a game
-that does not use it.
+**QuadTari** is supported and starts switched off.
+
+### QuadTari and two-button pads share the same two pins
+
+On a real 2600 a game tells a peripheral apart by the resting level of the two
+analog pins of the port, and the QuadTari and a two-button pad ask for opposite
+levels on them. They are the same physical wires, so on real hardware you plug
+in one or the other — and this core behaves the same way:
+
+- **QuadTari off** (the default) — two-button pads are detected.
+- **QuadTari on** — the QuadTari is detected, and the second button is not
+  offered automatically on that port.
+
+If you want a two-button pad on a port while the QuadTari is on, pick
+**Gamepad** at the bottom of the Port 1 or Port 2 list in the Peripherals menu:
+that forces the pad regardless. The same entry is what to use if a game assigns
+some other peripheral to a port and you want a pad anyway.
 
 ## 2600 support
 
