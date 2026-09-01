@@ -44,6 +44,8 @@ module Atari7800(
 	input  logic [15:0] cart_flags,
 	input  logic  [7:0] cart_save,
 	input  logic [31:0] cart_size,
+	input  logic [24:0] asset_start,
+	input  logic [31:0] asset_size,
 	output logic  [7:0] cart_din,
 	output logic        RW,
 	input  logic        loading,
@@ -76,6 +78,7 @@ module Atari7800(
 	input logic        fix_sc_cs,
 	output logic       tia_hsync,
 	input  logic       use_stereo,
+	input  logic [1:0] bup_vol,
 	input [10:0]       ps2_key,
 	input              pokey_irq,
 	input              minnie_en,
@@ -128,12 +131,13 @@ module Atari7800(
 	logic           mclk1;
 	logic           cs_ram0, cs_ram1, cs_tia, cs_riot, cs_maria;
 	logic [7:0]     open_bus;
-	wire            cart_read_flag, ext_audio;
+	wire            cart_read_flag, ext_read_flag, ext_audio_cart;
+	wire            ext_audio = ext_audio_cart || souper_profile;
 	logic [24:0]    cart_2600_addr_out, cart_7800_addr_out;
 	logic [7:0]     cart_2600_DB_out, cart_7800_DB_out;
 	logic           cpu_rwn;
 	logic [15:0]    covox_r, covox_l;
-	logic [15:0]    arm_audio;
+	logic [15:0]    arm_audio_l, arm_audio_r;
 	logic [15:0]    last_address;
 	logic           pclk1, pclk0, pclk1_m, pclk0_m, pclk1_t, pclk0_t;
 	logic           pclk1_raw, pclk0_raw;
@@ -161,7 +165,8 @@ module Atari7800(
 	assign cpu_halt_n = pure_2600 ? ~cmd_hold
 	                  : ((ctrl_writes == 2'd2) ? halt_n : 1'b1);
 	assign cpu_freeze = tia_en & cmd_hold;
-	assign cart_read = tia_en ? (pause ? ~|pause_clock : read_2600) : ((pause ? pause_clock[0] : (cart_read_flag & mclk1)));
+	assign cart_read = tia_en ? (pause ? ~|pause_clock : read_2600)
+	                          : ((pause ? pause_clock[0] : (cart_read_flag & mclk1)) | ext_read_flag);
 	assign cart_addr_out = tia_en ? cart_2600_addr_out : cart_7800_addr_out;
 	assign cart_DB_out = tia_en ? cart_2600_DB_out : cart_7800_DB_out;
 	assign PAread = cs_riot && ~|AB[4:0] && RW && pclk0;
@@ -377,8 +382,35 @@ module Atari7800(
 	wire [15:0] tia_r = (use_stereo ? audio_lut_single[audv0] : audio_lut[aud_index]);
 	wire [15:0] tia_l = (use_stereo ? audio_lut_single[audv1] : audio_lut[aud_index]);
 
-	wire [16:0] audio_mix_r = tia_r + pokey_audio_r + ym_audio_r + covox_r + minnie_audio + arm_audio + {tape_audio, 12'd0};
-	wire [16:0] audio_mix_l = tia_l + pokey_audio_l + ym_audio_l + covox_l + minnie_audio + arm_audio + {tape_audio, 12'd0};
+	wire souper_profile = cart_flags[12];
+
+	function automatic [15:0] bup_scala(input [15:0] campione, input [1:0] passo);
+		reg signed [18:0] esteso;
+		reg signed [18:0] scalato;
+		begin
+			esteso = $signed({{3{campione[15]}}, campione});
+			case (passo)
+				2'd0: scalato = esteso <<< 1;
+				2'd1: scalato = (esteso <<< 1) + esteso;
+				2'd2: scalato = esteso <<< 2;
+				default: scalato = esteso;
+			endcase
+			if (scalato > 19'sd32767)       bup_scala = 16'h7FFF;
+			else if (scalato < -19'sd32768) bup_scala = 16'h8000;
+			else                            bup_scala = scalato[15:0];
+		end
+	endfunction
+
+	wire [15:0] arm_sat_l = bup_scala(arm_audio_l, bup_vol);
+	wire [15:0] arm_sat_r = bup_scala(arm_audio_r, bup_vol);
+	wire [15:0] arm_mix_l = souper_profile ? {~arm_sat_l[15], arm_sat_l[14:0]} : 16'd0;
+	wire [15:0] arm_mix_r = souper_profile ? {~arm_sat_r[15], arm_sat_r[14:0]} : 16'd0;
+
+	wire [17:0] audio_sum_r = tia_r + pokey_audio_r + ym_audio_r + covox_r + minnie_audio + arm_mix_r + {tape_audio, 12'd0};
+	wire [17:0] audio_sum_l = tia_l + pokey_audio_l + ym_audio_l + covox_l + minnie_audio + arm_mix_l + {tape_audio, 12'd0};
+
+	wire [16:0] audio_mix_r = audio_sum_r[17] ? 17'h1FFFF : audio_sum_r[16:0];
+	wire [16:0] audio_mix_l = audio_sum_l[17] ? 17'h1FFFF : audio_sum_l[16:0];
 
 	assign AUDIO_R = ext_audio ? audio_mix_r[16:1] : audio_mix_r[15:0];
 	assign AUDIO_L = ext_audio ? audio_mix_l[16:1] : audio_mix_l[15:0];
@@ -475,6 +507,10 @@ module Atari7800(
 	cart cart
 	(
 		.clk_sys        (clk_sys),
+		.clk_vid        (clk_vid),
+		.pause          (pause),
+		.asset_start    (asset_start),
+		.asset_size     (asset_size),
 		.pclk0          (pclk0),
 		.pclk1          (pclk1),
 		.IRQ_n          (IRQ_n),
@@ -489,6 +525,7 @@ module Atari7800(
 		.cart_cs        (cs_cart),
 		.cart_xm        (cart_xm),
 		.cart_read      (cart_read_flag),
+		.ext_read       (ext_read_flag),
 		.cartram_addr   (cartram_addr78),
 		.cartram_wr     (cartram_wr78),
 		.cartram_rd     (cartram_rd78),
@@ -506,10 +543,11 @@ module Atari7800(
 		.ym_audio_l     (ym_audio_l),
 		.rom_address    (cart_7800_addr_out),
 		.open_bus       (open_bus),
-		.arm_audio      (arm_audio),
+		.arm_audio_l    (arm_audio_l),
+		.arm_audio_r    (arm_audio_r),
 		.covox_r        (covox_r),
 		.covox_l        (covox_l),
-		.external_audio (ext_audio),
+		.external_audio (ext_audio_cart),
 		.ps2_key        (ps2_key),
 		.pokey_irq_en   (pokey_irq),
 		.minnie_en      (minnie_en),

@@ -82,6 +82,7 @@ parameter CONF_STR = {
 	"P1-;",
 	"P1O23,Stereo Mix,None,25%,50%,100%;",
 	"P1O4,Stereo TIA,No,Yes;",
+	"P1O[75:74],BupChip Volume,Normal,High,Max,Raw;",
 	"d0P1OM,Vertical Crop,Disabled,216p(5x);",
 	"d0P1ONQ,Crop Offset,0,2,4,8,10,12,-12,-10,-8,-6,-4,-2;",
 	"P1ORS,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
@@ -169,8 +170,8 @@ wire        ioctl_wait;
 
 reg  [31:0] sd_lba0;
 reg         sd_rd0, sd_wr0;
-wire [31:0] bup_lba;
-wire        bup_rd;
+wire [31:0] bup_lba = 32'd0;
+wire        bup_rd = 1'b0;
 wire [31:0] sd_lba[2];
 
 wire  [5:0] sd_blk_cnt[2];
@@ -272,7 +273,15 @@ reg [7:0] joy0_type, joy1_type, cart_region, cart_save;
 
 logic [15:0] cart_flags;
 logic [39:0] cart_header;
-logic [31:0] cart_size;
+logic [31:0] cart_size_eof;
+logic [31:0] hcart_size;
+
+wire [31:0] cart_size = (cart_is_7800 && |hcart_size && hcart_size < cart_size_eof)
+                        ? hcart_size : cart_size_eof;
+
+wire [24:0] asset_start = cart_size[24:0] & 25'h1FFFFFC;
+wire [31:0] asset_size  = (cart_size_eof > {7'd0, asset_start})
+                        ? (cart_size_eof - {7'd0, asset_start}) : 32'd0;
 logic [24:0] cart_addr;
 logic [7:0] cart_xm;
 logic cart_busy;
@@ -407,6 +416,7 @@ Atari7800 main
 	.bypass_bios  (~status[17]),
 	.pokey_irq    (status[8]),
 	.minnie_en    (status[73]),
+	.bup_vol      (status[75:74]),
 	.hsc_en       (~use_sk && (~|status[19:18] && (|cart_save || cart_xm[0]) ? 1'b1 : status[18])),
 	.hsc_ram_dout (hsc_ram_dout),
 	.hsc_ram_cs   (hsc_ram_cs),
@@ -417,6 +427,8 @@ Atari7800 main
 	.cart_out     (cart_download ? ioctl_dout[7:0] : (cart_loaded ? cart_data_sd : cart_data)),
 	.cart_read    (cart_read),
 	.cart_size    (cart_size),
+	.asset_start  (asset_start),
+	.asset_size   (asset_size),
 	.cart_addr_out(cart_addr),
 	.cart_flags   (cart_is_7800 ? cart_flags[15:0] : 16'd0),
 	.cart_save    (cart_save),
@@ -485,39 +497,11 @@ Atari7800 main
 wire [15:0] core_audio_l, core_audio_r;
 wire  [7:0] bup_cmd;
 wire        bup_strobe, bup_en;
-wire [15:0] bup_l, bup_r;
-wire        bup_ready, bup_playing;
-
-bup_stream u_bup
-(
-	.clk          (clk_sys),
-	.reset        (reset),
-	.mounted      (img_mounted[1]),
-	.img_size     (img_size),
-	.cmd          (bup_cmd),
-	.cmd_strobe   (bup_strobe),
-	.sd_lba       (bup_lba),
-	.sd_rd        (bup_rd),
-	.sd_ack       (sd_ack[1]),
-	.sd_buff_addr (sd_buff_addr),
-	.sd_buff_dout (sd_buff_dout),
-	.sd_buff_wr   (sd_buff_wr),
-	.audio_l      (bup_l),
-	.audio_r      (bup_r),
-	.playing      (bup_playing),
-	.ready        (bup_ready)
-);
 
 assign sd_buff_din[1] = 8'd0;
 
-wire [15:0] bup_u_l = bup_l + 16'h8000;
-wire [15:0] bup_u_r = bup_r + 16'h8000;
-wire        bup_on  = bup_ready & bup_en;
-
-assign AUDIO_L = bup_on ? ({1'b0, core_audio_l[15:1]} + {1'b0, bup_u_l[15:1]})
-                        : core_audio_l;
-assign AUDIO_R = bup_on ? ({1'b0, core_audio_r[15:1]} + {1'b0, bup_u_r[15:1]})
-                        : core_audio_r;
+assign AUDIO_L = core_audio_l;
+assign AUDIO_R = core_audio_r;
 
 logic [14:0] bios_mask;
 
@@ -537,7 +521,8 @@ detect2600 detect2600
 
 initial begin
 	cart_header = "ATARI";
-	cart_size = 32'h00008000;
+	cart_size_eof = 32'h00008000;
+	hcart_size = 32'd0;
 	cart_flags = 0;
 	cart_region = 0;
 	bios_mask = 0;
@@ -550,8 +535,14 @@ always_ff @(posedge clk_sys) begin
 	cart_is_7800 <= (cart_header == "ATARI");
 	if (bios_download && ioctl_wr)
 		bios_mask <= ioctl_addr[14:0];
-	if (cart_download && ioctl_wr)
-		cart_size <= (ioctl_addr - (cart_is_7800 ? 8'd128 : 1'b0)) + 1'd1;
+	if (cart_download && ioctl_wr) begin
+		if (cart_is_7800 && ioctl_addr < 25'd128)
+			cart_size_eof <= 32'd0;
+		else
+			cart_size_eof <= (ioctl_addr - (cart_is_7800 ? 8'd128 : 1'b0)) + 1'd1;
+		if (~|ioctl_addr)
+			hcart_size <= 32'd0;
+	end
 	if (cart_download) begin
 		tia_mode <= ioctl_index[7:6] != 0;
 		cart_loaded <= 1;
@@ -563,6 +554,10 @@ always_ff @(posedge clk_sys) begin
 				'd04: cart_header[15:8] <= ioctl_dout;
 				'd05: cart_header[7:0] <= ioctl_dout;
 
+				'd49: hcart_size[31:24] <= ioctl_dout;
+				'd50: hcart_size[23:16] <= ioctl_dout;
+				'd51: hcart_size[15:8]  <= ioctl_dout;
+				'd52: hcart_size[7:0]   <= ioctl_dout;
 				'd53: cart_flags[15:8] <= ioctl_dout;
 				'd54: cart_flags[7:0] <= ioctl_dout;
 				'd55: joy0_type <= ioctl_dout;
@@ -579,6 +574,7 @@ always_ff @(posedge clk_sys) begin
 			joy0_type <= 8'd1;
 			joy1_type <= 8'd1;
 			cart_header <= '0;
+			hcart_size <= 32'd0;
 			cart_flags <= 0;
 			cart_region <= 0;
 			cart_save <= 0;
@@ -957,7 +953,7 @@ always_comb begin
 		7: header_type0 = 8'd5;
 		8: header_type0 = 8'd7;
 		9: header_type0 = 8'd8;
-		default: header_type0 = 8'd0;
+		default: header_type0 = 8'd1;
 	endcase
 
 	case (joy1_type)
@@ -971,7 +967,7 @@ always_comb begin
 		7: header_type1 = 8'd5;
 		8: header_type1 = 8'd7;
 		9: header_type1 = 8'd8;
-		default: header_type1 = 8'd0;
+		default: header_type1 = 8'd1;
 	endcase
 
 	robor[3] = ~($signed(joyar_0[7:0]) > 63);

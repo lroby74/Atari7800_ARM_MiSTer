@@ -35,6 +35,9 @@ coprocessor start and run too.
 - **Fixed the second fire button being ignored unless you used a SNAC adapter.**
   Two-button controllers are now recognised by the games that support them, on
   any controller, keyboard included (Qyx, Scramble Arcade).
+- **Fixed the controller being ignored when the port is left on Auto.** Games
+  that declare a controller the core did not recognise now fall back to a
+  joystick instead of no input at all (A.R.T.I.).
 - **Flicker blend**, on by default, for games that draw on alternating frames.
 
 ## Features
@@ -47,6 +50,11 @@ coprocessor start and run too.
 - Support for XM and XBoard modules.
 - Activision, Absolute, Bankset, Souper and Supergame mappers up to 1 MB.
 - Expansion audio: POKEY, two POKEYs at once, YM2151, Covox and Minnie.
+- BupChip music playback, with a volume setting in the audio menu
+  (Rikki & Vikki).
+- **Pause Core on OSD** stops the whole machine, soundtrack included. Open
+  the menu and the game and its music freeze; close it and both carry on
+  from the same point (Rikki & Vikki included).
 - Choice of Cool, Warm or Hot system temperature colour output.
 
 ## Setup
@@ -163,7 +171,6 @@ the ideal colours.
 ## Known bugs
 
 - Expansion ram of the XM module is not fully implemented.
-- BupChip music is not played.
 
 ## Credits
 

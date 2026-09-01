@@ -11,6 +11,10 @@
 module cart
 (
 	input  logic        clk_sys,
+	input  logic        clk_vid,
+	input  logic        pause,
+	input  logic [24:0] asset_start,
+	input  logic [31:0] asset_size,
 	input  logic        pclk0,
 	input  logic        pclk1,
 	input  logic [15:0] address_in,
@@ -36,6 +40,7 @@ module cart
 	output logic [7:0]  dout,
 	output logic        hsc_ram_cs,
 	output logic        cart_read,
+	output logic        ext_read,
 	output logic [15:0] pokey_audio_r,
 	output logic [15:0] pokey_audio_l,
 	output logic [15:0] minnie_audio,
@@ -43,7 +48,8 @@ module cart
 	output logic [15:0] ym_audio_l,
 	output logic [15:0] covox_r,
 	output logic [15:0] covox_l,
-	output logic [15:0] arm_audio,
+	output logic [15:0] arm_audio_l,
+	output logic [15:0] arm_audio_r,
 	output logic        external_audio,
 	output logic [24:0] rom_address,
 	output logic [17:0] cartram_addr,
@@ -91,17 +97,8 @@ wire XCTRL1_cs = (cart_xm[0] && address_in[15:4] == 8'h47) && cart_cs;
 wire ym_en = cart_flags[11] || XCTRL1[7];
 logic [24:0] ext_addr;
 logic        ext_req;
-logic  [7:0] ext_data;
+logic [31:0] ext_data;
 logic        ext_ack;
-
-logic [24:0] ext_addr_held;
-logic  [3:0] ext_cnt;
-logic        ext_busy;
-
-wire ext_apri = souper_en && ext_req && !cart_cs && !ext_busy;
-wire ext_hold = souper_en && (ext_apri || ext_busy);
-
-assign cart_read = (rw && cart_cs && ~cartram_cs) || ext_hold;
 always @(posedge clk_sys) begin
 	if (reset) begin
 		XCTRL1 <= 0;
@@ -351,7 +348,7 @@ always_comb begin
 	endcase
 
 	if (ext_hold)
-		rom_address = ext_apri ? ext_addr : ext_addr_held;
+		rom_address = ext_addr_held | {23'd0, ext_b};
 end
 
 logic [7:0] covox_reg[4];
@@ -419,9 +416,6 @@ always_comb begin
 		else
 			dout = rom_din;
 	end
-	if (arm_cs)
-		dout = arm_dout;
-
 end
 
 logic [3:0] ch0, ch1, ch2, ch3, ch0_2, ch1_2, ch2_2, ch3_2;
@@ -637,66 +631,147 @@ souper soup_soup (
 );
 
 logic [7:0] aud_com;
-logic       aud_req_n, aud_req_d;
-logic [7:0] arm_dout;
-logic       arm_busy;
-
-wire arm_cs = souper_en && cart_cs && (address_in[15:3] == 13'h008A);
-wire arm_wr = arm_cs && ~rw && pclk0;
-wire arm_rd = arm_cs &&  rw && pclk0;
-
-always_ff @(posedge clk_sys) aud_req_d <= aud_req_n;
-wire aud_req_edge = (aud_req_n != aud_req_d);
-
-assign bup_cmd    = aud_com;
-assign bup_strobe = aud_req_edge;
-assign bup_en     = souper_en;
+logic       aud_req_n, aud_req_d, aud_req_fase;
+logic [7:0] aud_cmd_data;
+logic       aud_cmd_valid;
 
 always_ff @(posedge clk_sys) begin
-	ext_ack <= 1'b0;
 	if (reset) begin
-		ext_busy <= 1'b0;
-		ext_cnt  <= 4'd0;
-	end else if (ext_apri) begin
-		ext_busy      <= 1'b1;
-		ext_cnt       <= 4'd0;
-		ext_addr_held <= ext_addr;
-	end else if (ext_busy) begin
-		if (cart_cs) begin
-
-			ext_busy <= 1'b0;
-		end else begin
-			ext_cnt <= ext_cnt + 1'd1;
-			if (ext_cnt == 4'd9) begin
-				ext_data <= rom_din;
-				ext_ack  <= 1'b1;
-				ext_busy <= 1'b0;
+		aud_req_d     <= 1'b1;
+		aud_req_fase  <= 1'b0;
+		aud_cmd_valid <= 1'b0;
+		aud_cmd_data  <= 8'd0;
+	end else begin
+		aud_cmd_valid <= 1'b0;
+		aud_req_d     <= aud_req_n;
+		if (aud_req_n != aud_req_d) begin
+			aud_req_fase <= ~aud_req_fase;
+			if (aud_req_fase) begin
+				aud_cmd_data  <= aud_com;
+				aud_cmd_valid <= 1'b1;
 			end
 		end
 	end
 end
 
-wire [15:0] copro_audio;
-assign arm_audio = 16'd0;
+assign bup_cmd    = aud_cmd_data;
+assign bup_strobe = aud_cmd_valid;
+assign bup_en     = souper_en;
 
-arm_copro arm (
-	.clk      (clk_sys),
-	.reset    (reset || ~souper_en),
-	.reg_a    (address_in[2:0]),
-	.reg_din  (din),
-	.reg_wr   (arm_wr),
-	.reg_rd   (arm_rd),
-	.reg_dout (arm_dout),
-	.aud_com  (aud_com),
-	.aud_req  (aud_req_edge),
+logic cmd_tog_sys, cmd_tog1, cmd_tog2, cmd_tog3;
+logic cmd_valid_arm;
+logic [7:0] cmd_data_arm;
+
+always_ff @(posedge clk_sys)
+	if (aud_cmd_valid) cmd_tog_sys <= ~cmd_tog_sys;
+
+always_ff @(posedge clk_vid) begin
+	cmd_tog1 <= cmd_tog_sys;
+	cmd_tog2 <= cmd_tog1;
+	cmd_tog3 <= cmd_tog2;
+	cmd_valid_arm <= cmd_tog2 ^ cmd_tog3;
+	cmd_data_arm  <= aud_cmd_data;
+end
+
+localparam int EXT_ATTESA = 4'd10;
+
+logic  [1:0] ext_b;
+logic  [3:0] ext_cnt;
+logic        ext_busy, ext_rd;
+logic [24:0] ext_addr_held;
+logic [31:0] ext_acc;
+
+logic cart_cs_v0, cart_cs_v;
+always_ff @(posedge clk_vid) begin
+	cart_cs_v0 <= cart_cs;
+	cart_cs_v  <= cart_cs_v0;
+end
+
+wire ext_apri = souper_en && ext_req && !ext_ack && !cart_cs_v && !ext_busy;
+
+wire ext_hold = souper_en && (ext_apri || (ext_busy && !cart_cs_v));
+
+assign cart_read = (rw && cart_cs && ~cartram_cs);
+assign ext_read  = ext_hold && ext_rd;
+
+always_ff @(posedge clk_vid) begin
+	ext_ack <= 1'b0;
+	if (reset) begin
+		ext_busy <= 1'b0;
+		ext_cnt  <= 4'd0;
+		ext_b    <= 2'd0;
+		ext_rd   <= 1'b0;
+	end else if (ext_apri) begin
+		ext_busy      <= 1'b1;
+		ext_cnt       <= 4'd0;
+		ext_b         <= 2'd0;
+		ext_rd        <= 1'b1;
+		ext_addr_held <= (asset_start + ext_addr) & 25'h1FFFFFC;
+	end else if (ext_busy) begin
+		if (cart_cs_v) begin
+			ext_rd   <= 1'b0;
+			ext_cnt  <= 4'd0;
+		end else if (!ext_rd) begin
+			ext_rd  <= 1'b1;
+			ext_cnt <= 4'd0;
+		end else begin
+			ext_cnt <= ext_cnt + 1'd1;
+			if (ext_cnt == EXT_ATTESA) begin
+				case (ext_b)
+					2'd0: ext_acc[7:0]   <= rom_din;
+					2'd1: ext_acc[15:8]  <= rom_din;
+					2'd2: ext_acc[23:16] <= rom_din;
+					2'd3: ext_acc[31:24] <= rom_din;
+				endcase
+				ext_rd <= 1'b0;
+				if (ext_b == 2'd3) begin
+					ext_ack  <= 1'b1;
+					ext_busy <= 1'b0;
+				end else begin
+					ext_b <= ext_b + 1'd1;
+				end
+			end
+		end
+	end
+end
+
+assign ext_data = ext_acc;
+
+arm_copro #(
+	.RAM_KB (88),
+	.CLK_HZ (57272728)
+) arm (
+	.clk        (clk_vid),
+	.reset      (reset || ~souper_en),
 	.auto_start (souper_en),
-	.ext_addr (ext_addr),
-	.ext_req  (ext_req),
-	.ext_data (ext_data),
-	.ext_ack  (ext_ack),
-	.audio    (copro_audio),
-	.busy     (arm_busy)
+	.cmd_valid  (cmd_valid_arm),
+	.cmd_data   (cmd_data_arm),
+	.ext_addr   (ext_addr),
+	.ext_req    (ext_req),
+	.ext_data   (ext_data),
+	.ext_ack    (ext_ack),
+	.asset_size (asset_size),
+	.pause      (pause),
+	.audio_l    (arm_aud_l_v),
+	.audio_r    (arm_aud_r_v),
+	.audio_tog  (arm_aud_tog)
 );
+
+logic [15:0] arm_aud_l_v, arm_aud_r_v;
+logic        arm_aud_tog, aud_tog1, aud_tog2;
+
+always_ff @(posedge clk_sys) begin
+	aud_tog1 <= arm_aud_tog;
+	aud_tog2 <= aud_tog1;
+	if (aud_tog1 ^ aud_tog2) begin
+		arm_audio_l <= arm_aud_l_v;
+		arm_audio_r <= arm_aud_r_v;
+	end
+	if (reset || ~souper_en) begin
+		arm_audio_l <= 16'd0;
+		arm_audio_r <= 16'd0;
+	end
+end
 
 endmodule: cart
 
