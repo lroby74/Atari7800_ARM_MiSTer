@@ -43,27 +43,4 @@ c5_pin_model_dump.txt
 .beads-credential-key
 .beads/proxieddb/
 
-# Host and credentials for the physical MiSTer - local only
-.agents/tools/mister/mister.local.conf
-
-# Work tree, notes, benches and game images - local only, never published
-ARM-nuovo/
-backup_speed/
-Giochi/
-7800GD-BupBoopConv-main/
 Thumbs.db
-
-# BupChip work material - local only, never published
-Rikki & Vikki musiche/
-modifiche suggerite per bup fix/
-strumenti_verifica/
-session-ses_fa34.md
-build_bupchip.py
-PER-STASERA-BUP.md
-
-# Il core BupChip di Jamie Blanks: e SUO, sta qui solo per confronto
-Atari7800_MiSTer-bupchip/
-
-# Copie del firmware del coprocessore per i banchi: Quartus usa quelle
-# nella radice, queste sono solo comodita locale
-rtl/copro_m_*.hex
